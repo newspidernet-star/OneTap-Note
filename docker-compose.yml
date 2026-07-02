@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+    environment:
+      - SMART_SCRIBE_OCR_MODE=local

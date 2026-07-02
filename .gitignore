@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime data
+backend/storage/
+/storage/
+*.db
+*.sqlite3
+
+# Secrets
+.env
+*.key
+backend/.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+新会话.txt
+
+# Frontend build cache (legacy)
+frontend/.vite/
+frontend/npm-cache/

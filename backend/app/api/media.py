@@ -1,0 +1,236 @@
+import logging
+import shutil
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db
+from app.config import get_settings
+from app.models import ApiSettings, EvidenceBlock, Material, Match, Summary, Session as SessionModel, Transcript, TranscriptSegment
+from app.schemas.media import MaterialOut, SessionCreate, SessionOut, UploadResponse
+from app.services.crypto import decrypt
+from app.services.pipeline import process_session
+from app.services.downloader import download
+from app.services.storage import classify_media, resolve_storage_path, save_upload
+
+logger = logging.getLogger("smart_scribe")
+
+router = APIRouter(tags=["media"])
+
+
+def _storage_url(file_path: str | None) -> str | None:
+    if not file_path:
+        return None
+    sdir = get_settings().storage_dir.resolve()
+    p = Path(resolve_storage_path(file_path))
+    try:
+        rel = p.resolve().relative_to(sdir)
+    except ValueError:
+        try:
+            rel = Path(file_path).relative_to(get_settings().storage_dir)
+        except ValueError:
+            return None
+    return f"/static/media/{rel.as_posix()}"
+
+
+@router.get("/api/sessions", response_model=list[SessionOut])
+def list_sessions(db: Session = Depends(get_db)):
+    return db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+
+
+@router.post("/api/sessions", response_model=SessionOut)
+async def create_session(body: SessionCreate, db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc).isoformat()
+    s = SessionModel(title=body.title, status="created", created_at=now, updated_at=now)
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+@router.post("/api/media/upload", response_model=UploadResponse)
+async def upload_file(
+    session_id: int = Form(...),
+    sort_order: int = Form(0),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    media_type = classify_media(file.filename, file.content_type)
+    file_path = save_upload(file, session_id)
+    m = Material(
+        session_id=session_id,
+        type=media_type,
+        source="local_file",
+        file_path=file_path,
+        sort_order=sort_order,
+        status="pending",
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return UploadResponse(material_id=m.id, type=media_type, status="pending")
+
+
+@router.get("/api/media/session/{session_id}/materials", response_model=list[MaterialOut])
+async def list_materials(session_id: int, db: Session = Depends(get_db)):
+    materials = db.query(Material).filter_by(session_id=session_id).order_by(Material.sort_order).all()
+    return [
+        MaterialOut(
+            id=m.id,
+            type=m.type,
+            source=m.source,
+            sort_order=m.sort_order,
+            status=m.status,
+            url=_storage_url(m.file_path),
+        )
+        for m in materials
+    ]
+
+
+@router.post("/api/media/session/{session_id}/process")
+def process_materials(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        t0 = time.time()
+        result = process_session(session_id, db)
+        logger.info(f"[session {session_id}] process 总耗时 {time.time()-t0:.2f}s")
+        session.status = "done"
+        session.error_message = None
+        session.updated_at = datetime.now(timezone.utc).isoformat()
+        db.commit()
+        return {
+            "frames_count": result.frames_count,
+            "ocr_pages_count": result.ocr_pages_count,
+            "evidence_block_ids": result.evidence_block_ids,
+        }
+    except Exception as e:
+        db.rollback()
+        session = db.query(SessionModel).filter_by(id=session_id).first()
+        if session:
+            session.status = "failed"
+            session.error_message = str(e)[:500]
+            session.updated_at = datetime.now(timezone.utc).isoformat()
+            db.commit()
+        raise HTTPException(status_code=500, detail="Processing failed")
+
+
+@router.delete("/api/sessions/{session_id}")
+def delete_session(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.query(Match).filter(
+        Match.speech_block_id.in_(
+            db.query(EvidenceBlock.id).filter(EvidenceBlock.session_id == session_id)
+        )
+    ).delete(synchronize_session=False)
+
+    db.query(TranscriptSegment).filter(
+        TranscriptSegment.transcript_id.in_(
+            db.query(Transcript.id).filter(Transcript.session_id == session_id)
+        )
+    ).delete(synchronize_session=False)
+
+    db.query(Transcript).filter(Transcript.session_id == session_id).delete(synchronize_session=False)
+    db.query(EvidenceBlock).filter(EvidenceBlock.session_id == session_id).delete(synchronize_session=False)
+    db.query(Material).filter(Material.session_id == session_id).delete(synchronize_session=False)
+    db.query(Summary).filter(Summary.session_id == session_id).delete(synchronize_session=False)
+    db.delete(session)
+    db.commit()
+
+    storage_dir = get_settings().storage_dir / f"session_{session_id}"
+    if storage_dir.exists():
+        shutil.rmtree(str(storage_dir))
+
+    return {"ok": True}
+
+
+@router.patch("/api/sessions/{session_id}")
+def update_session(session_id: int, body: SessionCreate, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.title = body.title[:200]
+    session.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {"id": session.id, "title": session.title, "status": session.status, "created_at": session.created_at, "updated_at": session.updated_at, "error_message": session.error_message}
+
+
+@router.get("/api/media/evidence/{session_id}")
+def list_evidence(session_id: int, db: Session = Depends(get_db)):
+    blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
+    return [
+        {
+            "id": b.block_id,
+            "type": b.type,
+            "timestamp": b.timestamp,
+            "end_timestamp": b.end_timestamp,
+            "speaker": b.speaker,
+            "text": b.text,
+            "page_number": b.page_number,
+            "material_id": b.material_id,
+            "image_url": _storage_url(b.image_path),
+        }
+        for b in blocks
+    ]
+
+
+_log = logging.getLogger("smart_scribe")
+
+
+@router.post("/api/media/download/{session_id}")
+def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
+    url = body.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL required")
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    cookie_record = db.query(ApiSettings).filter_by(key="ytdlp_cookie_path").first()
+    cookie_path = None
+    if cookie_record and cookie_record.encrypted_value:
+        try:
+            cookie_path = decrypt(cookie_record.encrypted_value)
+        except Exception:
+            cookie_path = None
+
+    try:
+        t0 = time.time()
+        specs = download(url, session_id, cookie_path=cookie_path)
+        logger.info(f"[session {session_id}] 下载完成: {len(specs)} 个文件, 耗时 {time.time()-t0:.2f}s")
+    except Exception as e:
+        _log.warning("Download failed for %s: %s", url, e, exc_info=True)
+        raise HTTPException(status_code=400, detail=f"下载失败: {e}")
+    existing_count = db.query(Material).filter_by(session_id=session_id).count()
+    results = []
+    for spec in specs:
+        mat = Material(
+            session_id=session_id,
+            type=spec.media_type,
+            source="download",
+            file_path=str(spec.file_path),
+            original_url=spec.original_url,
+            status="pending",
+            sort_order=existing_count + len(results),
+        )
+        db.add(mat)
+        db.flush()
+        results.append(MaterialOut(
+            id=mat.id, type=mat.type, source=mat.source,
+            status=mat.status, sort_order=mat.sort_order,
+            url=_storage_url(mat.file_path),
+        ))
+    session.status = "processing"
+    session.error_message = None
+    session.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {"materials": results}

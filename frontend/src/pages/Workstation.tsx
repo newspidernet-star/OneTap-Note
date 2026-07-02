@@ -1,0 +1,1150 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { Sparkles, Mic2, ImageIcon, FileText, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  useListSessions,
+  useGetEvidenceBlocks,
+  useGetSummaryResult,
+  useGenerateSummary,
+  useGetMaterials,
+  useCreateSession,
+  useUploadFile,
+  useDownloadLink,
+  useProcessSession,
+  useTranscribe,
+  useMatchEvidence,
+  useDeleteSession,
+  useRenameSession,
+  useGetSettings,
+  useUpdateSettings,
+  getGetEvidenceBlocksQueryKey,
+  getGetSummaryResultQueryKey,
+  getGetMaterialsQueryKey,
+  getListSessionsQueryKey,
+  getGetSettingsQueryKey,
+} from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import IslandButton, { ButtonStatus } from "@/components/IslandButton";
+import UploadProgress, { UploadStatus } from "@/components/UploadProgress";
+import TimelinePanel from "@/components/TimelinePanel";
+import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const MOCK_EVIDENCE = [
+  { id: "S001", type: "speech", timestamp: "00:12", speaker: "张老师", text: "电磁感应定律是描述磁通量变化产生感应电动势的基本规律。" },
+  { id: "P001", type: "screen", timestamp: "00:14", text: "法拉第电磁感应定律 · 磁通量变化率" },
+  { id: "S002", type: "speech", timestamp: "01:05", speaker: "张老师", text: "我们来看楞次定律——感应电流的方向总是阻碍磁通量的变化。" },
+];
+
+const MOCK_SUMMARY = {
+  corrected_text: "电磁感应定律是描述磁通量变化产生感应电动势的基本规律。法拉第电磁感应定律·磁通量变化率。我们来看楞次定律——感应电流的方向总是阻碍磁通量的变化。",
+  summary: "本节课围绕电磁感应的核心理论展开，详细讲解了法拉第电磁感应定律和楞次定律两大基本规律。法拉第电磁感应定律指出，闭合回路中感应电动势的大小等于穿过该回路的磁通量变化率的负值，这是发电机和变压器等设备工作的基本原理。楞次定律进一步确定了感应电流的方向——感应电流所产生的磁通量总是试图阻碍引起感应的原磁通量的变化，这体现了能量守恒定律在电磁现象中的具体表现。理解这两条定律的物理意义和数学表达是掌握电磁感应章节的关键。",
+  key_points: [
+    { point: "法拉第电磁感应定律：磁通量变化产生感应电动势，大小等于磁通量变化率的负值", citations: ["S001", "P001"] },
+    { point: "楞次定律：感应电流方向总是阻碍磁通量变化，体现能量守恒", citations: ["S002"] },
+    { point: "电磁感应是发电机和变压器工作的基本原理", citations: ["P001"] },
+  ],
+  unused_block_ids: [] as string[],
+  citation_valid: true,
+  invalid_citations: [] as string[],
+  corrections: [] as any[],
+};
+
+const CitationTag = ({ id, type, onClick }: { id: string; type: string; onClick: (e: React.MouseEvent) => void }) => {
+  const isSpeech = type === 'speech';
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={(e) => { e.stopPropagation(); onClick(e); }}
+      className={`px-2 py-0.5 rounded-full text-xs font-mono text-white cursor-pointer ${isSpeech ? 'bg-blue-500 hover:bg-blue-600' : 'bg-red-500 hover:bg-red-600'}`}
+    >
+      {id}
+    </motion.button>
+  );
+};
+
+const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: any; title: string; defaultOpen: boolean; children: React.ReactNode }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
+
+  return (
+    <div className="rounded-xl border border-border/40 bg-card overflow-hidden transition-shadow hover:shadow-sm">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <Icon className="w-3.5 h-3.5" /> {title}
+        </div>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-muted-foreground">
+          <ChevronDown className="w-4 h-4" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const MOCK_SESSION_ID = "mock_demo";
+
+const SETTINGS_FIELDS = [
+  { key: "dashscope_api_key", label: "DashScope API Key", required: true, placeholder: "sk-..." },
+  { key: "dashscope_workspace_id", label: "DashScope Workspace ID", required: false, placeholder: "可选，专属工作空间 ID" },
+  { key: "deepseek_api_key", label: "DeepSeek API Key", required: true, placeholder: "sk-..." },
+  { key: "paddleocr_cloud_key", label: "PaddleOCR Cloud Key", required: false, placeholder: "AI Studio API Key（可选）" },
+  { key: "ytdlp_cookie_path", label: "yt-dlp Cookie 路径", required: false, placeholder: "可选，本机 cookies.txt 路径" },
+];
+
+function isAudioVideoName(name: string): boolean {
+  return /\.(mp4|mkv|webm|mov|avi|mp3|wav|m4a|aac|flac)$/i.test(name);
+}
+
+function fmtTimestamp(t: any): string {
+  if (t == null || t === "") return "00:00";
+  const n = typeof t === "number" ? t : parseFloat(t);
+  if (Number.isNaN(n)) return String(t);
+  const m = Math.floor(n / 60);
+  const s = Math.floor(n % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+export default function Workstation() {
+  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  const [highlightedBlock, setHighlightedBlock] = useState<string | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadErrorSessionId, setUploadErrorSessionId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isDark, setIsDark] = useState(true);
+  const [showKeyPoints, setShowKeyPoints] = useState(true);
+  const [justGenerated, setJustGenerated] = useState(false);
+  const [mediaIndex, setMediaIndex] = useState(0);
+  const [linkInput, setLinkInput] = useState("");
+  const [uploadRunning, setUploadRunning] = useState(false);
+  const [processingSessionId, setProcessingSessionId] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const [timelineVisible, setTimelineVisible] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const transcribeTriggered = useRef<string>("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
+  const [creatingSession, setCreatingSession] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) root.classList.add('dark');
+    else root.classList.remove('dark');
+  }, [isDark]);
+
+  const hasSession = !!activeSessionId;
+  const isMock = false;
+
+  const queryClient2 = queryClient;
+  const { data: sessions = [], isFetching: sessionsFetching } = useListSessions();
+
+  const realSessions = useMemo(
+    () => (sessions as any[]).map(s => ({ ...s, id: String(s.id) })),
+    [sessions]
+  );
+
+  useEffect(() => {
+    if (realSessions.length > 0 && (isMock || !realSessions.some(s => s.id === activeSessionId))) {
+      setActiveSessionId(realSessions[0].id);
+    }
+  }, [realSessions]);
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  // 切换/删除会话后，清理属于旧会话的上传错误和处理状态
+  useEffect(() => {
+    if (uploadErrorSessionId) {
+      const errorSessionStillExists = realSessions.some(s => s.id === uploadErrorSessionId);
+      if (!errorSessionStillExists || activeSessionId !== uploadErrorSessionId) {
+        setUploadError(null);
+        setUploadErrorSessionId(null);
+      }
+    }
+    if (processingSessionId && activeSessionId !== processingSessionId) {
+      setProcessingSessionId(null);
+    }
+    if (uploadRunning) {
+      setUploadRunning(false);
+    }
+  }, [activeSessionId, uploadErrorSessionId, processingSessionId, realSessions]);
+
+  // 切换会话后清空链接输入框和生成错误，避免旧状态串到新会话
+  const prevActiveSessionRef = useRef(activeSessionId);
+  useEffect(() => {
+    if (activeSessionId !== prevActiveSessionRef.current) {
+      setLinkInput("");
+      setGenerateError(null);
+      prevActiveSessionRef.current = activeSessionId;
+    }
+  }, [activeSessionId]);
+
+  const { data: evidence = [] } = useGetEvidenceBlocks(activeSessionId, {
+    query: { enabled: hasSession, queryKey: getGetEvidenceBlocksQueryKey(activeSessionId) },
+  });
+  const { data: materials = [], refetch: refetchMaterials } = useGetMaterials(activeSessionId, {
+    query: { enabled: hasSession, queryKey: getGetMaterialsQueryKey(activeSessionId) },
+  });
+  const { data: summary } = useGetSummaryResult(activeSessionId, {
+    query: { enabled: hasSession, queryKey: getGetSummaryResultQueryKey(activeSessionId), retry: false },
+  });
+
+  const createSessionMut = useCreateSession();
+  const uploadMut = useUploadFile({
+    mutation: {
+      onError: (error: any) => setUploadError(error?.message || "上传失败"),
+    },
+  });
+  const downloadLinkMut = useDownloadLink({
+    mutation: {
+      onError: (error: any) => setUploadError(error?.message || "链接下载失败"),
+    },
+  });
+  const processMut = useProcessSession({
+    mutation: {
+      onError: (error: any) => {
+        setUploadError(error?.message || "处理失败");
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+      },
+    },
+  });
+  const transcribeMut = useTranscribe({
+    mutation: {
+      onError: (error: any) => {
+        setUploadError(error?.message || "转写失败");
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+      },
+    },
+  });
+  const matchMut = useMatchEvidence({
+    mutation: {
+      onError: () => {
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+      },
+    },
+  });
+  const deleteMut = useDeleteSession({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        setDeleteTarget(null);
+      },
+    },
+  });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const renameMut = useRenameSession();
+  const { data: settingsStatus = [] } = useGetSettings({
+    query: { enabled: showSettings, queryKey: getGetSettingsQueryKey() },
+  });
+  const updateSettingsMut = useUpdateSettings({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        setSettingsDraft({});
+        setShowSettings(false);
+      },
+    },
+  });
+  const generateMutation = useGenerateSummary({
+    mutation: {
+      onSuccess: () => {
+        queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(activeSessionId) });
+        setGenerateError(null);
+        setShowKeyPoints(true);
+        setJustGenerated(true);
+        setTimeout(() => setJustGenerated(false), 600);
+      },
+      onError: () => setGenerateError("生成失败，请检查 API 设置"),
+    },
+  });
+
+  const activeSession = realSessions.find(s => s.id === activeSessionId);
+  const displaySummary = summary ?? (isMock ? MOCK_SUMMARY : null);
+  const displayEvidence = isMock ? MOCK_EVIDENCE : (evidence as any[]);
+
+  const previewMaterials = useMemo(() => {
+    if (isMock) return [];
+    return (materials as any[]).filter(m => m.url && m.type !== "unknown");
+  }, [materials, isMock]);
+  const currentPreview = previewMaterials[mediaIndex] || previewMaterials[0];
+  useEffect(() => {
+    setMediaIndex(0);
+  }, [activeSessionId]);
+  useEffect(() => {
+    if (mediaIndex >= previewMaterials.length) setMediaIndex(0);
+  }, [previewMaterials.length, mediaIndex]);
+  const previewVideo = useMemo(() => previewMaterials.find(m => m.type === "video"), [previewMaterials]);
+  const previewAudio = useMemo(() => previewMaterials.find(m => m.type === "audio"), [previewMaterials]);
+  const previewImages = useMemo(() => previewMaterials.filter(m => m.type === "image"), [previewMaterials]);
+
+  const hasPrevMaterial = mediaIndex > 0;
+  const hasNextMaterial = mediaIndex < previewMaterials.length - 1;
+  const goToPrevMaterial = () => setMediaIndex(i => Math.max(0, i - 1));
+  const goToNextMaterial = () => setMediaIndex(i => Math.min(previewMaterials.length - 1, i + 1));
+
+  const invalidateAll = (sessionId = activeSessionId) => {
+    queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+    if (!sessionId) return;
+    queryClient2.invalidateQueries({ queryKey: getGetEvidenceBlocksQueryKey(sessionId) });
+    queryClient2.invalidateQueries({ queryKey: getGetMaterialsQueryKey(sessionId) });
+    queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(sessionId) });
+  };
+
+  const runTranscribe = (sessionId: string) => {
+    transcribeTriggered.current = sessionId;
+    transcribeMut.mutate(
+      { sessionId },
+      {
+        onSuccess: () => {
+          setUploadError(null);
+          setUploadErrorSessionId(null);
+          invalidateAll(sessionId);
+        },
+        onError: () => invalidateAll(sessionId),
+      }
+    );
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const arr = Array.from(files);
+    const baseName = arr[0]?.name.replace(/\.[^.]+$/, "") || "Untitled";
+    const uploadedHasAudioVideo = arr.some(f => isAudioVideoName(f.name));
+    let sessionId = activeSessionId;
+    setUploadRunning(true);
+    setUploadError(null);
+    setUploadErrorSessionId(sessionId);
+    setProcessingSessionId(sessionId);
+    try {
+      const needCreate = !realSessions.some(s => s.id === activeSessionId);
+      if (needCreate) {
+        const created = await createSessionMut.mutateAsync({ title: baseName.slice(0, 80) });
+        sessionId = String(created.id);
+        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        setActiveSessionId(sessionId);
+        setUploadErrorSessionId(sessionId);
+        setProcessingSessionId(sessionId);
+      }
+      for (let i = 0; i < arr.length; i++) {
+        await uploadMut.mutateAsync({ sessionId: sessionId!, file: arr[i], sortOrder: i });
+      }
+      const proc = await processMut.mutateAsync({ sessionId: sessionId! });
+      invalidateAll(sessionId);
+      if (uploadedHasAudioVideo) {
+        runTranscribe(sessionId!);
+      }
+      void proc;
+    } catch (error: any) {
+      setUploadError(error?.message || "处理失败");
+      invalidateAll(sessionId);
+    } finally {
+      setUploadRunning(false);
+      setProcessingSessionId(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCitationClick = (id: string) => {
+    setTimelineVisible(true);
+    setHighlightedBlock(id);
+    setTimeout(() => {
+      const el = document.getElementById(`ev-${id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const block = displayEvidence.find(b => b.id === id);
+      if (block && videoRef.current) {
+        const ts = typeof block.timestamp === "number" ? block.timestamp : parseTimestamp(block.timestamp);
+        if (ts !== null && !Number.isNaN(ts)) videoRef.current.currentTime = ts;
+      }
+    }, 300);
+    setTimeout(() => setHighlightedBlock(null), 2000);
+  };
+
+  const parseTimestamp = (ts: any): number | null => {
+    if (typeof ts === "number") return ts;
+    const parts = String(ts).split(':');
+    if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+    return null;
+  };
+
+  const [pulseUpload, setPulseUpload] = useState(false);
+  const pulseUploadOnce = () => {
+    setPulseUpload(true);
+    setTimeout(() => setPulseUpload(false), 2000);
+  };
+
+  const handleGenerate = async () => {
+    if (isMock || !activeSessionId || displayEvidence.length === 0) {
+      pulseUploadOnce();
+      toast({
+        title: "还不能生成总结",
+        description: "请等待媒体处理完成并生成证据块后再试。",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (matchMut.isPending || generateMutation.isPending) return;
+    setGenerateError(null);
+    try {
+      await matchMut.mutateAsync({ sessionId: activeSessionId });
+      generateMutation.mutate({ sessionId: activeSessionId });
+    } catch {
+      setGenerateError("匹配失败，请检查证据块");
+    }
+  };
+
+  const handleAddLink = async () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    let sessionId = activeSessionId;
+    setUploadRunning(true);
+    setUploadError(null);
+    setUploadErrorSessionId(sessionId);
+    setProcessingSessionId(sessionId);
+    try {
+      const needCreate = !realSessions.some(s => s.id === activeSessionId);
+      if (needCreate) {
+        let title = "链接素材";
+        try {
+          title = new URL(url).hostname.replace(/^www\./, "") || title;
+        } catch {}
+        const created = await createSessionMut.mutateAsync({ title });
+        sessionId = String(created.id);
+        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        setActiveSessionId(sessionId);
+        setUploadErrorSessionId(sessionId);
+        setProcessingSessionId(sessionId);
+      }
+      const downloaded = await downloadLinkMut.mutateAsync({ sessionId: sessionId!, url });
+      await processMut.mutateAsync({ sessionId: sessionId! });
+      invalidateAll(sessionId);
+      const downloadedMaterials = (downloaded?.materials ?? []) as any[];
+      if (downloadedMaterials.some(m => m.type === "audio" || m.type === "video")) {
+        runTranscribe(sessionId!);
+      }
+      setLinkInput("");
+    } catch (error: any) {
+      setUploadError(error?.message || "链接处理失败");
+      invalidateAll(sessionId);
+    } finally {
+      setUploadRunning(false);
+      setProcessingSessionId(null);
+    }
+  };
+
+  const statusText = (s: string) => s === 'done' ? '已完成' : s === 'processing' ? '处理中' : s === 'failed' ? '失败' : (s || '就绪');
+  const isProcessing = uploadMut.isPending || downloadLinkMut.isPending || processMut.isPending || transcribeMut.isPending;
+  const pipelineError = uploadError || activeSession?.error_message || generateError || undefined;
+
+  const uploadStatus: UploadStatus = pipelineError && !matchMut.isPending && !generateMutation.isPending
+    ? "error"
+    : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending
+      ? "uploading"
+      : (activeSession?.status === 'done' || activeSession?.status === 'processing')
+        ? "done"
+        : "idle";
+
+  const buttonStatus: ButtonStatus = generateError
+    ? "error"
+    : matchMut.isPending
+      ? "matching"
+      : generateMutation.isPending
+        ? "summarizing"
+        : displaySummary
+          ? "done"
+          : "idle";
+
+  const canGenerate = !isMock && !matchMut.isPending && !generateMutation.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const settingsByKey = useMemo(
+    () => new Map((settingsStatus as any[]).map(item => [item.key, item])),
+    [settingsStatus]
+  );
+  const handleSaveSettings = async () => {
+    const changed = SETTINGS_FIELDS
+      .map(field => ({
+        key: field.key,
+        value: (settingsDraft[field.key] || "").trim(),
+        is_required: field.required,
+      }))
+      .filter(item => item.value.length > 0);
+
+    if (changed.length === 0) {
+      setShowSettings(false);
+      return;
+    }
+    await updateSettingsMut.mutateAsync({ settings: changed });
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
+      <header className="safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-primary">
+            <Sparkles className="w-5 h-5" />
+            <span className="font-bold tracking-tight">Smart Scribe</span>
+          </div>
+          <div className="w-px h-4 bg-border max-md:hidden" />
+          <input
+            key={activeSession?.id || "mock"}
+            type="text"
+            defaultValue={activeSession?.title || ""}
+            onBlur={(e) => {
+              const newTitle = e.target.value.trim();
+              if (newTitle && activeSessionId && !isMock && newTitle !== activeSession?.title) {
+                renameMut.mutate({ sessionId: activeSessionId, title: newTitle });
+                queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+              }
+            }}
+            className="bg-transparent border-none outline-none focus:ring-1 ring-primary rounded px-2 text-sm font-medium w-64 max-md:hidden"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs max-md:hidden">
+            {isProcessing ? <Loader2 className="w-3 h-3 animate-spin text-amber-500" /> :
+              activeSession?.status === 'done' ? <span className="w-2 h-2 rounded-full bg-green-500" /> :
+              isMock ? <span className="w-2 h-2 rounded-full bg-muted-foreground/40" /> : <span className="w-2 h-2 rounded-full bg-amber-500" />}
+            <span className="text-muted-foreground">{isMock ? '演示数据' : statusText(activeSession?.status)}</span>
+          </div>
+          <button
+            disabled={creatingSession}
+            onClick={async () => {
+              setCreatingSession(true);
+              try {
+                const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                const sid = String(created.id);
+                await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                setActiveSessionId(sid);
+              } finally {
+                setCreatingSession(false);
+              }
+            }}
+            className="md:hidden p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-50"
+            title="新建会话"
+          >
+            {creatingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
+          </button>
+          <button onClick={() => setShowMobileMenu(true)} className="md:hidden p-1.5 hover:bg-white/10 rounded-md">
+            <Menu className="w-5 h-5" />
+          </button>
+          <button onClick={() => setTimelineVisible(true)} className="md:hidden p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1.5">
+            <Film className="w-4 h-4" />
+            <span className="text-xs font-medium">时间线</span>
+          </button>
+          <button onClick={() => setIsDark(d => !d)} className="relative w-14 h-7 rounded-full border border-border bg-muted transition-colors hover:border-primary/30">
+            <motion.div
+              className="absolute top-0.5 w-6 h-6 rounded-full bg-card shadow-sm border border-border/60 flex items-center justify-center"
+              animate={{ left: isDark ? 4 : 28 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            >
+              {isDark ? <Moon className="w-3.5 h-3.5 text-white" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+            </motion.div>
+          </button>
+          <button onClick={() => setShowSettings(true)} className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground">
+            <Settings className="w-4 h-4" />
+          </button>
+          <button onClick={() => setTimelineVisible(v => !v)} className="max-md:hidden p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1.5">
+            {timelineVisible ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+            <span className="text-xs font-medium">时间线</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 min-h-0 items-stretch max-md:flex-col max-md:overflow-y-auto">
+        <aside className="w-[220px] md:w-[200px] lg:w-[220px] bg-card/50 flex flex-col shrink-0 border-r-2 border-border/50 z-10 max-md:w-full max-md:border-r-0 max-md:border-b-2">
+          <div className="p-4 space-y-3 overflow-x-hidden">
+            <input ref={fileInputRef} type="file" multiple accept="video/*,audio/*,image/*" className="hidden" onChange={e => handleFiles(e.target.files)} />
+            <AnimatePresence mode="wait">
+              {uploadStatus !== "idle" ? (
+                <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <UploadProgress
+                    status={uploadStatus}
+                    errorMessage={pipelineError}
+                    onDismiss={() => setUploadError(null)}
+                    onRetry={async () => {
+                      if (!activeSessionId) return;
+                      transcribeTriggered.current = "";
+                      setUploadError(null);
+                      setUploadErrorSessionId(activeSessionId);
+                      setProcessingSessionId(activeSessionId);
+                      try {
+                        const mats = await refetchMaterials();
+                        const freshMaterials = (mats.data as any[]) ?? [];
+                        // 如果当前会话没有素材但输入框里还有链接，说明之前下载失败，优先重试下载
+                        if (freshMaterials.length === 0 && linkInput.trim()) {
+                          await handleAddLink();
+                          return;
+                        }
+                        await processMut.mutateAsync({ sessionId: activeSessionId });
+                        invalidateAll(activeSessionId);
+                        const refreshed = await refetchMaterials();
+                        const refreshedMaterials = (refreshed.data as any[]) ?? [];
+                        const hasAV = refreshedMaterials.some(m => m.type === "audio" || m.type === "video");
+                        if (hasAV) {
+                          runTranscribe(activeSessionId);
+                        }
+                      } catch {
+                        // errors surface via mutations
+                      } finally {
+                        setProcessingSessionId(null);
+                      }
+                    }}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="entry"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="space-y-3"
+                >
+                  <motion.button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadRunning}
+                    animate={pulseUpload ? {
+                      borderColor: ["hsl(var(--border))", "rgba(239,68,68,0.9)", "hsl(var(--border))", "rgba(239,68,68,0.7)", "hsl(var(--border))"],
+                      boxShadow: ["0 0 0 0 rgba(239,68,68,0)", "0 0 24px 4px rgba(239,68,68,0.35)", "0 0 0 0 rgba(239,68,68,0)", "0 0 18px 2px rgba(239,68,68,0.25)", "0 0 0 0 rgba(239,68,68,0)"],
+                      scale: [1, 1.015, 1, 1.01, 1],
+                    } : {}}
+                    transition={pulseUpload ? { duration: 2, times: [0, 0.25, 0.5, 0.75, 1] } : { duration: 0.2 }}
+                    className="w-full rounded-2xl bg-card border-2 border-dashed border-border hover:border-primary/40 transition-colors cursor-pointer group p-5 flex flex-col items-center justify-center gap-3 min-h-[140px] disabled:opacity-60"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      {uploadRunning ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <CloudUpload className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-foreground">{uploadRunning ? "上传中…" : "上传媒体"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">拖拽文件或点击上传</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">mp4 · mp3 · m4a · png · jpg</p>
+                    </div>
+                  </motion.button>
+                  <div className="flex flex-col gap-2">
+                    <motion.div
+                      animate={pulseUpload ? {
+                        borderColor: ["hsl(var(--border))", "rgba(239,68,68,0.7)", "hsl(var(--border))"],
+                        boxShadow: ["0 0 0 0 rgba(239,68,68,0)", "0 0 18px 2px rgba(239,68,68,0.25)", "0 0 0 0 rgba(239,68,68,0)"],
+                      } : {}}
+                      transition={pulseUpload ? { duration: 2, times: [0, 0.3, 1] } : { duration: 0.2 }}
+                      className="flex items-center gap-2 px-3 py-2.5 max-md:py-2.5 rounded-xl bg-card/80 border hover:border-primary/30 transition-colors group cursor-text"
+                    >
+                      <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-focus-within:text-primary transition-colors" />
+                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} placeholder="粘贴视频或音频链接..." className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60" />
+                    </motion.div>
+                    <button onClick={handleAddLink} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all">添加链接</button>
+                  </div>
+                </motion.div>
+)}
+      </AnimatePresence>
+    </div>
+           <div className="flex-1 overflow-y-auto p-2 space-y-1 max-md:space-y-1.5 max-md:hidden">
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">历史会话</span>
+            </div>
+            <button
+              disabled={creatingSession}
+              onClick={async () => {
+                setCreatingSession(true);
+                try {
+                  const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                  const sid = String(created.id);
+                  await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                  setActiveSessionId(sid);
+                } finally {
+                  setCreatingSession(false);
+                }
+              }}
+              className="w-full mb-1 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creatingSession ? (<Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />) : null}+ 新建会话
+            </button>
+            <div className="group relative hidden">
+              <button
+                onClick={() => setActiveSessionId(MOCK_SESSION_ID)}
+                className={`w-full text-left px-3 py-2 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors ${isMock ? 'bg-primary/10 text-primary' : 'hover:bg-white/5 text-muted-foreground'}`}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                <span className="truncate">演示会话（mock）</span>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: MOCK_SESSION_ID, title: "演示会话（mock）" }); }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all"
+                title="删除"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {realSessions.map(s => (
+              <div key={s.id} className="group relative">
+                {renamingId === s.id ? (
+                  <input
+                    ref={renameInputRef}
+                    value={renameDraft}
+                    onChange={e => setRenameDraft(e.target.value)}
+                    onBlur={() => {
+                      if (renameDraft.trim() && renameDraft.trim() !== s.title) {
+                        renameMut.mutate({ sessionId: s.id, title: renameDraft.trim() });
+                        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                      }
+                      setRenamingId(null);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm bg-primary/10 border border-primary/30 outline-none"
+                  />
+                ) : (
+                  <>
+                    <button onClick={() => setActiveSessionId(s.id)}
+                      onDoubleClick={() => { setRenamingId(s.id); setRenameDraft(s.title); }}
+                      className={`w-full text-left px-3 py-2 max-md:py-2.5 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors ${activeSessionId === s.id ? 'bg-primary/10 text-primary' : 'hover:bg-white/5 text-muted-foreground'}`}
+                    >
+                      <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-blue-500 animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
+                      <span className="truncate">{s.title}</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}
+                      className="absolute right-7 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 max-md:opacity-100 max-md:min-w-[32px] max-md:min-h-[32px] max-md:flex max-md:items-center max-md:justify-center hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-all"
+                      title="重命名"
+                    >
+                      <Pencil className="w-3 h-3 max-md:w-4 max-md:h-4" />
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: s.id, title: s.title }); }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 max-md:opacity-100 max-md:min-w-[32px] max-md:min-h-[32px] max-md:flex max-md:items-center max-md:justify-center max-md:text-muted-foreground/50 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all"
+                  title="删除"
+                >
+                  <Trash2 className="w-3.5 h-3.5 max-md:w-4 max-md:h-4" />
+                </button>
+              </div>
+            ))}
+            {sessionsFetching && realSessions.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground/60 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> 加载中…</div>
+            )}
+          </div>
+        </aside>
+
+        <main key={activeSessionId || "empty"} className="flex-1 flex flex-col bg-card max-md:min-h-0 max-md:flex-none">
+          <div className="px-5 pt-4 pb-2 flex items-center sticky top-0 bg-card z-10">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-5 h-5 text-primary" />
+              <span className="font-semibold text-base">AI 总结</span>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4 flex flex-col items-center max-md:overflow-visible">
+            <div id="island-btn">
+            <IslandButton
+              status={buttonStatus}
+              generable={canGenerate || isMock}
+              onGenerate={handleGenerate}
+              onRegenerate={handleGenerate}
+              mediaUrl={currentPreview?.url}
+              mediaType={currentPreview?.type as any}
+              videoRef={videoRef}
+              errorMessage={generateError || undefined}
+              onPrev={hasPrevMaterial ? goToPrevMaterial : undefined}
+              onNext={hasNextMaterial ? goToNextMaterial : undefined}
+              hasPrev={hasPrevMaterial}
+              hasNext={hasNextMaterial}
+            />
+            </div>
+
+            {displaySummary && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px] space-y-3">
+                {displaySummary.citation_valid && (
+                  <div className="inline-flex items-center gap-1.5 text-xs text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0" /> 引用校验通过
+                  </div>
+                )}
+
+                <motion.div
+                  animate={justGenerated ? { scale: [1, 1.03, 1] } : {}}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                >
+                  <CollapsibleCard icon={ListChecks} title="核心要点" defaultOpen={showKeyPoints}>
+                    <div className="space-y-3">
+                      {displaySummary.key_points.map((kp, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.08 }}
+                          className="flex gap-3 p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group"
+                          onClick={() => {
+                            if (kp.citations.length > 0) handleCitationClick(kp.citations[0]);
+                          }}
+                        >
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-xs font-semibold text-primary mt-0.5 group-hover:scale-110 transition-transform">
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14px] text-foreground/90 leading-7">{kp.point}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {kp.citations.map(c => {
+                                const ev = displayEvidence.find(e => e.id === c);
+                                return <CitationTag key={c} id={c} type={ev?.type || 'speech'} onClick={() => handleCitationClick(c)} />;
+                              })}
+                            </div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 mt-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </CollapsibleCard>
+                </motion.div>
+
+                <CollapsibleCard icon={Sparkles} title="摘要" defaultOpen={false}>
+                  <div className="text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
+                </CollapsibleCard>
+
+                <CollapsibleCard icon={FileText} title="纠错原文" defaultOpen={false}>
+                  <div className="text-[13px] leading-6 text-foreground/70 bg-background/50 rounded-lg p-3">{displaySummary.corrected_text}</div>
+                </CollapsibleCard>
+
+                {displaySummary.unused_block_ids.length > 0 && (
+                  <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
+                    <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      <TriangleAlert className="w-3.5 h-3.5 text-amber-500" /> 未被引用
+                    </div>
+                    <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                      {displaySummary.unused_block_ids.map(id => (
+                        <span key={id} className="px-2.5 py-1 rounded-lg border border-border bg-background/50 text-xs font-mono text-muted-foreground">{id}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+            {!displaySummary && !isMock && (
+              <div className="text-center text-xs text-muted-foreground/50 py-8">先上传媒体、处理生成证据块后，点击上方按钮生成总结</div>
+            )}
+            <div className="md:hidden mt-4 w-full max-w-[520px]">
+              <CollapsibleCard icon={Film} title={`原文证据 · ${displayEvidence.length} 块`} defaultOpen={false}>
+                <div className="space-y-3">
+                  {displayEvidence.map((block, i) => {
+                    const isSpeech = block.type === 'speech';
+                    const isHighlighted = highlightedBlock === block.id;
+                    return (
+                      <motion.div id={`ev-${block.id}`} key={block.id}
+                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }} whileHover={{ scale: 1.005, x: 2 }}
+                        className={`relative p-3 rounded-xl border bg-card cursor-pointer transition-all duration-300
+                          ${isSpeech ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-red-500'}
+                          ${isHighlighted ? 'ring-2 ring-primary shadow-[0_0_15px_rgba(233,69,96,0.3)] scale-[1.01]' : 'border-border hover:border-border/80'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`px-1.5 py-0.5 rounded text-[10px] font-mono flex items-center gap-1.5 ${isSpeech ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
+                            {isSpeech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
+                            {block.id}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (currentPreview?.type === "video" || currentPreview?.type === "audio") {
+                                    document.getElementById("island-btn")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    const ts = typeof block.timestamp === "number" ? block.timestamp : parseTimestamp(block.timestamp);
+                                    setTimeout(() => {
+                                      if (videoRef.current && ts !== null && !Number.isNaN(ts)) videoRef.current.currentTime = ts;
+                                    }, 400);
+                                  }
+                                }}
+                              >
+                                ▶ {fmtTimestamp(block.timestamp)}
+                              </span>
+                              {block.speaker && <span className="text-xs font-medium text-foreground/80">{block.speaker}</span>}
+                            </div>
+                            <p className="text-sm text-foreground/90 leading-relaxed">{block.text}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {displayEvidence.length === 0 && !isMock && (
+                    <div className="text-center text-xs text-muted-foreground/50 py-4">暂无证据块，上传媒体后自动处理生成</div>
+                  )}
+                  {displayEvidence.length === 0 && isMock && (
+                    <div className="text-center text-xs text-muted-foreground/50 py-4">演示数据 · 点击证据块 ID 跳转</div>
+                  )}
+                </div>
+              </CollapsibleCard>
+            </div>
+          </div>
+        </main>
+
+        <div className="hidden md:block self-stretch flex flex-col min-h-0 bg-card">
+        <AnimatePresence>
+              {timelineVisible && !isMobile ? (
+                <motion.aside
+                  key="timeline-open"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 465, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1 flex flex-col bg-card border-l border-border z-10 overflow-hidden max-md:hidden"
+                >
+                  <TimelinePanel
+                    blocks={displayEvidence}
+                    highlightedBlock={highlightedBlock}
+                    onBlockClick={(id) => {
+                      setHighlightedBlock(highlightedBlock === id ? null : id);
+                      document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    onTimestampClick={(block) => {
+                      if (currentPreview?.type === "video" || currentPreview?.type === "audio") {
+                        const ts = typeof block.timestamp === "number" ? block.timestamp : parseTimestamp(block.timestamp);
+                        if (videoRef.current && ts !== null && !Number.isNaN(ts)) videoRef.current.currentTime = ts;
+                      }
+                    }}
+                    currentPreviewType={currentPreview?.type}
+                    videoRef={videoRef}
+                  />
+                </motion.aside>
+              ) : null}
+            </AnimatePresence>
+        </div>
+
+      </div>
+
+      <AnimatePresence>
+        {timelineVisible && isMobile && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] md:hidden"
+            onClick={() => setTimelineVisible(false)}
+          >
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              className="absolute right-0 inset-y-0 w-full max-w-[400px] bg-card border-l border-border shadow-2xl flex flex-col"
+            >
+              <div className="safe-area-top shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Film className="w-4 h-4 text-primary" /> 时间线 · 证据块
+                </div>
+                <button onClick={() => setTimelineVisible(false)} className="p-1.5 rounded-md hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden safe-area-pad">
+                <TimelinePanel
+                  blocks={displayEvidence}
+                  highlightedBlock={highlightedBlock}
+                  onBlockClick={(id) => {
+                    setHighlightedBlock(highlightedBlock === id ? null : id);
+                    setTimelineVisible(false);
+                  }}
+                  onTimestampClick={(block) => {
+                    setTimelineVisible(false);
+                    if (currentPreview?.type === "video" || currentPreview?.type === "audio") {
+                      const ts = typeof block.timestamp === "number" ? block.timestamp : parseTimestamp(block.timestamp);
+                      setTimeout(() => {
+                        if (videoRef.current && ts !== null && !Number.isNaN(ts)) videoRef.current.currentTime = ts;
+                      }, 300);
+                    }
+                  }}
+                  currentPreviewType={currentPreview?.type}
+                  videoRef={videoRef}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMobileMenu && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 md:hidden"
+            onClick={() => setShowMobileMenu(false)}
+          >
+            <motion.div initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
+              transition={{ type: "spring", damping: 30, stiffness: 400 }}
+              onClick={e => e.stopPropagation()}
+              className="safe-area-pad w-[280px] h-full bg-card border-r border-border overflow-y-auto p-4"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-semibold text-base">历史会话</span>
+                <button onClick={() => setShowMobileMenu(false)} className="p-1 text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <button onClick={() => { setActiveSessionId(MOCK_SESSION_ID); setShowMobileMenu(false); }}
+                className="hidden w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 mb-1 transition-colors"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
+                演示会话（mock）
+              </button>
+              {realSessions.map(s => (
+                <div key={s.id} className="group relative">
+                  <button onClick={() => { setActiveSessionId(s.id); setShowMobileMenu(false); }}
+                    className="w-full text-left px-3 py-2 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors hover:bg-white/5 text-muted-foreground"
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-blue-500 animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
+                    {s.title}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: s.id, title: s.title }); }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover:opacity-100 max-md:opacity-100 min-w-[32px] min-h-[32px] flex items-center justify-center text-muted-foreground/50 hover:text-red-400">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              <button
+                disabled={creatingSession}
+                onClick={async () => {
+                  setCreatingSession(true);
+                  try {
+                    const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                    const sid = String(created.id);
+                    await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                    setActiveSessionId(sid);
+                    setShowMobileMenu(false);
+                  } finally {
+                    setCreatingSession(false);
+                  }
+                }}
+                className="w-full mt-3 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {creatingSession ? (<Loader2 className="w-3 h-3 animate-spin inline-block mr-1" />) : null}+ 新建会话
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {deleteTarget && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+            onClick={() => setDeleteTarget(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl max-md:rounded-b-none max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:max-w-none"
+              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <h3 className="font-semibold text-foreground text-lg mb-2">删除会话</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                确定删除「{deleteTarget.title}」吗？<br />
+                <span className="text-red-400 text-xs">媒体文件、证据块、总结将一并清除。</span>
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setDeleteTarget(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-foreground/5 transition-colors">
+                  取消
+                </button>
+                <button onClick={() => {
+                  deleteMut.mutate({ sessionId: deleteTarget.id });
+                  if (activeSessionId === deleteTarget.id) {
+                    const remaining = realSessions.filter(s => s.id !== deleteTarget.id);
+                    if (remaining.length > 0) setActiveSessionId(remaining[0].id);
+                    else setActiveSessionId("");
+                  }
+                }}
+                  disabled={deleteMut.isPending}
+                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {deleteMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  删除
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowSettings(false)}
+          >
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl max-md:rounded-b-none max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:max-w-none max-md:rounded-t-2xl overflow-hidden"
+              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <div className="p-4 border-b border-border flex items-center justify-between bg-black/20">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm">API 设置</span>
+                </div>
+                <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground">
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-5">
+                {SETTINGS_FIELDS.map(field => {
+                  const status = settingsByKey.get(field.key);
+                  const isSet = Boolean(status?.is_set);
+                  return (
+                    <div key={field.key} className="space-y-1.5">
+                      <label className="text-xs font-mono text-muted-foreground">
+                        {field.label}
+                        <span className={`ml-2 text-[10px] font-sans ${field.required ? "text-red-400" : "text-muted-foreground"}`}>
+                          {field.required ? "必填" : "可选"}
+                        </span>
+                        {isSet && <span className="ml-2 text-[10px] text-emerald-400 font-sans">已保存</span>}
+                      </label>
+                      <input
+                        type="password"
+                        value={settingsDraft[field.key] || ""}
+                        onChange={e => setSettingsDraft(d => ({ ...d, [field.key]: e.target.value }))}
+                        placeholder={isSet ? "已保存，留空保持不变" : field.placeholder}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:border-primary outline-none font-mono"
+                      />
+                    </div>
+                  );
+                })}
+                {updateSettingsMut.isError && (
+                  <p className="text-xs text-red-400">保存失败，请检查后端服务状态</p>
+                )}
+              </div>
+              <div className="p-4 border-t border-border flex justify-end gap-2">
+                <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors">取消</button>
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={updateSettingsMut.isPending}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-all disabled:opacity-60 flex items-center gap-2"
+                >
+                  {updateSettingsMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  保存
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
