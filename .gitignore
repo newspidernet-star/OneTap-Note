@@ -31,6 +31,7 @@ backend/.env
 .idea/
 .DS_Store
 新会话.txt
+conversations/
 
 # Frontend build cache (legacy)
 frontend/.vite/
