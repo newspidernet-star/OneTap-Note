@@ -75,6 +75,8 @@ npm run dev
 
 开发服务器自带代理：`/api`、`/static`、`/ws` 全部转发到 `http://localhost:8000`（见 `vite.config.ts`），所以直接访问 `http://localhost:5173` 即可。
 
+> **Windows 提示**：Vite v5 默认监听 IPv6 `[::1]:5173`，用 `http://127.0.0.1:5173` 会 `ERR_CONNECTION_REFUSED`。请用 `http://localhost:5173`；若坚持用 IP，启动时加 `--host 127.0.0.1`：`npm run dev -- --host 127.0.0.1`。
+
 **生产部署**前端 `npm run build` 出 `dist/`，由你自己的 Nginx / Caddy 托管，把 `/api/*` 和 `/static/*` 反代到后端 `:8000`。
 
 ### 5. 在网页里填 API Key
@@ -179,7 +181,7 @@ npm run dev
 
 - **有公网 IP / 域名**：在 `backend/.env` 填 `SMART_SCRIBE_PUBLIC_BASE_URL=https://your-host`，并保证 `/static/media/*` 可公网下载（见下方"公网地址配置"章节）；
 - **内网穿透**：用 frp / Cloudflare Tunnel / 花生壳把某公网域名隧穿到本机 `:8000`，再填 `SMART_SCRIBE_PUBLIC_BASE_URL`；
-- **手动装 cloudflared**：`winget install Cloudflare.cloudflared`，保证它在 PATH 里，后端代码会在转写时自动起 quick tunnel（`SMART_SCRIBE_TUNNEL=auto`）。
+- **手动装 cloudflared**：`winget install Cloudflare.cloudflared`，保证它在 PATH 里，后端代码会在转写时自动起 quick tunnel（`SMART_SCRIBE_TUNNEL=auto`）。**装完务必重开 PowerShell**——winget 不会刷新当前终端的 PATH，旧窗口里 `cloudflared` 仍找不到。
 
 #### B6. 填 API Key
 

@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
     app.mount("/static/media", StaticFiles(directory=str(settings.storage_dir.resolve())), name="media")
 
     # 自动隧道模式下，只允许隧道访问 /static 媒体路径，屏蔽 /api 等接口
-    if settings.tunnel_mode == "auto" and not settings.public_base_url:
+    if settings.tunnel == "auto" and not settings.public_base_url:
 
         class TunnelGuardMiddleware(BaseHTTPMiddleware):
             async def dispatch(self, request: Request, call_next):

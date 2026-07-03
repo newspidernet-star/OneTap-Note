@@ -26,6 +26,9 @@ backend/storage/
 *.key
 backend/.env
 
+# Logs
+*.log
+
 # Editor / OS
 .vscode/
 .idea/

@@ -65,10 +65,10 @@ def get_tunnel_url() -> Optional[str]:
 
 
 def resolve_public_base_url() -> Optional[str]:
-    """已配置就走配置；否则在 tunnel_mode=auto 时自动起隧道。"""
+    """已配置就走配置；否则在 tunnel=auto 时自动起隧道。"""
     settings = get_settings()
     if settings.public_base_url:
         return settings.public_base_url.rstrip("/")
-    if settings.tunnel_mode == "auto":
+    if settings.tunnel == "auto":
         return start_tunnel().rstrip("/")
     return None

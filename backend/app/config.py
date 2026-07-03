@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     ocr_mode: str = "local"
     public_base_url: str = ""
     # 语音转写需要公网回拉音频：auto = 无 public_base_url 时自动起 cloudflared 临时隧道
-    tunnel_mode: str = "auto"
+    # 对应环境变量 SMART_SCRIBE_TUNNEL
+    tunnel: str = "auto"
     tunnel_target_port: int = 8000
 
     class Config:
