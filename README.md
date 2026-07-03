@@ -91,6 +91,108 @@ npm run dev
 
 ---
 
+## 在 Windows 上启动
+
+Windows 上有两条路。首选 Docker Desktop（一键起全套，行为和 Linux 一致）；当 Docker 跑不起来或不想装时，再走本地 `uvicorn` 方案。
+
+### A. 都能用：先装好 Docker Desktop 再 `docker compose`
+
+这是最省心的方式——镜像把 ffmpeg / Playwright / PaddleOCR 全打包好了，本地 OCR、云端 OCR 都能跑。
+
+1. 装 Docker Desktop：
+   ```powershell
+   winget install Docker.DockerDesktop
+   ```
+2. 启动 Docker Desktop。如果报 **"Virtualization support not detected"**（虚拟化未开启），按下面任一处理：
+   - 重启进 BIOS / UEFI，开启 Intel VT-x / AMD-V；
+   - 或者：控制面板 → 程序 → 启用或关闭 Windows 功能 → 勾选 "虚拟机平台" 和 "适用于 Linux 的 Windows 子系统（WSL）"，重启后再开 Docker Desktop；
+   - 仍然起不来就走方案 B（本地 uvicorn），不强依赖虚拟化。
+3. Docker 正常后回到主流程：
+   ```powershell
+   docker compose up --build -d
+   ```
+   然后直接做第 4、5 步（前端、API Key）即可。
+
+### B. 不用 Docker：本地 uvicorn 跑后端
+
+适用于：没装 Docker、虚拟化开不了、不想拉几个 GB 的 PaddlePaddle 镜像。代价是 **OCR 必须走云端**（见下文说明）。
+
+#### B0. 选 OCR 模式
+
+本地 OCR（`SMART_SCRIBE_OCR_MODE=local`）依赖 PaddlePaddle，在 Windows 上原生安装很容易翻车（没有官方 Windows GPU wheel、CPU wheel 也常因 MKL / Visual C++ 运行库失败）。**Windows 本地方案只推荐云端 OCR**：
+
+```dotenv
+# backend/.env
+SMART_SCRIBE_OCR_MODE=cloud
+SMART_SCRIBE_PUBLIC_BASE_URL=
+SMART_SCRIBE_TUNNEL=auto
+```
+
+> 如果你确实需要本地 OCR：要么走方案 A（Docker），要么在 WSL2 里跑后端。Windows 原生跑本地 OCR 不在支持范围内。
+
+#### B1. 准备运行依赖
+
+需要 **Python 3.11**（3.12/3.13 下 FastAPI、Playwright 等多数包还没有 wheel）、**ffmpeg**、**Node.js 18+**：
+
+```powershell
+winget install Python.Python.3.11
+winget install Gyan.FFmpeg        # 装完确认 `ffmpeg -version` 能跑
+winget install OpenJS.NodeJS.LTS # 已装可跳过
+```
+
+#### B2. 装后端依赖
+
+云端 OCR 不会 import `paddleocr` / `paddlepaddle`，可把它们从 `backend/requirements.txt` 里**暂时删掉这两行**（留着会装失败，云端模式用不上）：
+
+```powershell
+py -3.11 -m venv backend\.venv
+backend\.venv\Scripts\Activate.ps1
+cd backend
+pip install -r requirements.txt
+playwright install chromium
+```
+
+#### B3. 启动后端
+
+```powershell
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+健康检查 `http://localhost:8000/api/health`。改完代码按 Ctrl+C 重跑即可。
+
+#### B4. 启动前端
+
+另开一个 PowerShell：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+打开 `http://localhost:5173`（开发服务器会把 `/api`、`/static`、`/ws` 代理到 `:8000`）。
+
+#### B5. 公网回拉（语音转写必读）
+
+阿里云 Fun-ASR 要从公网回拉音频。Docker 镜像内置 cloudflared，但 **Windows 本地启动默认没有 cloudflared**，所以 `SMART_SCRIBE_TUNNEL=auto` 在 Windows 原生上不会自动起隧道。三选一：
+
+- **有公网 IP / 域名**：在 `backend/.env` 填 `SMART_SCRIBE_PUBLIC_BASE_URL=https://your-host`，并保证 `/static/media/*` 可公网下载（见下方"公网地址配置"章节）；
+- **内网穿透**：用 frp / Cloudflare Tunnel / 花生壳把某公网域名隧穿到本机 `:8000`，再填 `SMART_SCRIBE_PUBLIC_BASE_URL`；
+- **手动装 cloudflared**：`winget install Cloudflare.cloudflared`，保证它在 PATH 里，后端代码会在转写时自动起 quick tunnel（`SMART_SCRIBE_TUNNEL=auto`）。
+
+#### B6. 填 API Key
+
+打开前端 → 设置页，填：
+
+| Key | 必填 | 说明 |
+|-----|------|------|
+| `dashscope_api_key` | ✅ | 阿里云 Fun-ASR |
+| `deepseek_api_key` | ✅ | AI 总结 |
+| `paddleocr_cloud_key` | ✅ | 云端 OCR 必填，没有它 OCR 流程不可用 |
+
+---
+
 ## 两种 OCR 模式
 
 由 `SMART_SCRIBE_OCR_MODE` 控制，**改完需重启**：
