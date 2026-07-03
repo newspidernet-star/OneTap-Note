@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -55,6 +57,17 @@ def create_app() -> FastAPI:
                 return await call_next(request)
 
         app.add_middleware(TunnelGuardMiddleware)
+
+    # 一键启动 / 生产模式：若前端已构建（frontend/dist），由后端直接托管，
+    # 省去单独跑 vite dev server。开发模式仍用 npm run dev（:5173 代理到 :8000）。
+    frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if frontend_dist.exists():
+        @app.get("/{full_path:path}")
+        async def _spa(full_path: str):
+            candidate = frontend_dist / full_path
+            if full_path and candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(frontend_dist / "index.html")
 
     return app
 

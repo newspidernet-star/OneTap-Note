@@ -95,6 +95,21 @@ npm run dev
 
 ## 在 Windows 上启动
 
+### ⓪ 一键脚本（推荐先试）
+
+仓库根目录的 `start-windows.bat` 把下面 A/B 的手动步骤全部自动化：
+
+1. 双击 `start-windows.bat`。
+2. 首次运行会自动 `winget` 安装 Python 3.11 / Node.js LTS / ffmpeg / cloudflared（已装则跳过），创建 `backend/.venv`，`pip install` Windows 依赖子集（云端 OCR，跳过 paddleocr），`playwright install chromium`，`npm install && npm run build`，生成 `backend/.env`。
+3. 之后启动后端（uvicorn），**前端构建产物由后端直接托管**，单进程监听 `http://localhost:8000`，浏览器自动打开。
+4. 进设置页填三个 API Key 即可（同 B6）。
+
+> 限制：仅云端 OCR（需 `paddleocr_cloud_key`）；语音转写时后端自动起 cloudflared 临时隧道供阿里云回拉。脚本会自动探测本机 `127.0.0.1:7897` 代理（clash 默认端口）；下载慢可先 `set HTTPS_PROXY=http://127.0.0.1:7897` 再双击。
+
+---
+
+下面两条路适合需要本地 OCR 或更多控制的用户：
+
 Windows 上有两条路。首选 Docker Desktop（一键起全套，行为和 Linux 一致）；当 Docker 跑不起来或不想装时，再走本地 `uvicorn` 方案。
 
 ### A. 都能用：先装好 Docker Desktop 再 `docker compose`
