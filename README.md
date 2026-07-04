@@ -82,12 +82,7 @@ cd frontend && npm install && npm run dev
 - 开通 PaddleOCR 服务
 - 个人中心 → **访问令牌** → 复制 token（形如 `a30cf4ca...`）填入设置页 `paddleocr_cloud_key`
 
-<details>
-<summary>📊 获取 Access Token 演示（点击展开 GIF）</summary>
-
 ![获取 PaddleOCR Token 演示](docs/get-paddleocr-token.gif)
-
-</details>
 
 后端走 `https://paddleocr.aistudio-app.com/api/v2/ocr/jobs`，模型 `PP-OCRv6`，自带限流重试（429 退避）。
 
