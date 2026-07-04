@@ -69,6 +69,8 @@ cd frontend && npm install && npm run dev
 - 左侧菜单 **API Keys** → **创建 API Key**
 - 复制 `sk-...` 填入设置页 `deepseek_api_key`
 
+![获取 DeepSeek API Key 演示](docs/get-deepseek-token.gif)
+
 ### 2. DashScope API Key（必填，语音转写）
 
 - 打开 [阿里云百炼控制台](https://bailian.console.aliyun.com/) → 登录
