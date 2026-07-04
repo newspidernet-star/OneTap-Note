@@ -148,6 +148,16 @@ def process_materials(session_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/api/sessions/{session_id}")
 def delete_session(session_id: int, db: Session = Depends(get_db)):
+    return _delete_session_impl(session_id, db)
+
+
+@router.post("/api/sessions/{session_id}/purge")
+def purge_session_via_post(session_id: int, db: Session = Depends(get_db)):
+    """sendBeacon 只能发 POST，关标签时用它触发删除（等同 DELETE）。"""
+    return _delete_session_impl(session_id, db)
+
+
+def _delete_session_impl(session_id: int, db: Session) -> dict:
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")

@@ -79,7 +79,7 @@ def _sweep_once() -> None:
     db = SessionLocal()
     try:
         sessions = db.query(SessionModel).all()
-        to_delete: list[int] = []
+        to_delete: list[tuple[int, float]] = []
         for s in sessions:
             last = _parse_iso(s.last_seen_at)
             if last is None:
@@ -89,26 +89,24 @@ def _sweep_once() -> None:
                 continue
             # 时区对齐：last 可能带 tz 也可能不带
             if last.tzinfo is None:
-                from datetime import timezone as tz
-                last = last.replace(tzinfo=tz.utc)
+                last = last.replace(tzinfo=timezone.utc)
             age = (now - last).total_seconds()
             if age < grace:
                 continue
             # 超过 grace → 候选删除
             if age > hard_limit:
-                to_delete.append(s.id)
+                to_delete.append((s.id, age))
                 continue
             # 在 grace ~ hard_limit 之间：保护 processing
             if s.status == "processing":
                 continue
-            to_delete.append(s.id)
-        for sid in to_delete:
-            logger.info("[session %s] sweeper: 心跳超时（age=%.0fs, grace=%ss）→ 删除",
-                        sid, age if 'age' in dir() else -1, grace)
+            to_delete.append((s.id, age))
     finally:
         db.close()
 
-    for sid in to_delete:
+    for sid, age in to_delete:
+        logger.info("[session %s] sweeper: 心跳超时（age=%.0fs, grace=%ss）→ 删除",
+                    sid, age, grace)
         purge_session(sid)
 
 

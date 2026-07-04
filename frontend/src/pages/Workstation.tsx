@@ -186,12 +186,27 @@ export default function Workstation() {
     }, 15000);
     const onUnload = () => {
       if (!activeSessionId) return;
+      // 优先 fetch keepalive DELETE（现代浏览器）；fallback sendBeacon POST /purge（sendBeacon 只能 POST）
       try {
-        navigator.sendBeacon(
-          `/api/sessions/${activeSessionId}`,
-          new Blob([JSON.stringify({ client_id: clientId })], { type: "application/json" })
-        );
-      } catch {}
+        fetch(`/api/sessions/${activeSessionId}`, {
+          method: "DELETE",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: clientId }),
+        }).catch(() => {
+          navigator.sendBeacon(
+            `/api/sessions/${activeSessionId}/purge`,
+            new Blob([JSON.stringify({ client_id: clientId })], { type: "application/json" })
+          );
+        });
+      } catch {
+        try {
+          navigator.sendBeacon(
+            `/api/sessions/${activeSessionId}/purge`,
+            new Blob([JSON.stringify({ client_id: clientId })], { type: "application/json" })
+          );
+        } catch {}
+      }
     };
     window.addEventListener("beforeunload", onUnload);
     return () => {
