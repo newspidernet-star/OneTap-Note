@@ -33,14 +33,20 @@ async function safeFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export const getListSessionsQueryKey = () => ["/api/sessions"] as const;
+export const getListSessionsQueryKey = (clientId?: string) =>
+  clientId ? ["/api/sessions", clientId] as const : ["/api/sessions"] as const;
 
 export function useListSessions<TData = any, TError = unknown>(
+  clientId?: string,
   options?: { query?: UseQueryOptions<any, TError, TData> }
 ) {
   return useQuery<any, TError, TData>({
-    queryKey: getListSessionsQueryKey(),
-    queryFn: ({ signal }) => safeFetch<any[]>("/api/sessions", { signal }),
+    queryKey: getListSessionsQueryKey(clientId),
+    queryFn: ({ signal }) =>
+      safeFetch<any[]>(
+        clientId ? `/api/sessions?client_id=${encodeURIComponent(clientId)}` : "/api/sessions",
+        { signal }
+      ),
     retry: false,
     staleTime: 1000 * 30,
     ...options?.query,
@@ -100,16 +106,44 @@ export function useGetSummaryResult<TData = any, TError = unknown>(
 
 export const useCreateSession = <TError = unknown, TContext = unknown>(
   options?: {
-    mutation?: UseMutationOptions<any, TError, { title?: string }, TContext>;
+    mutation?: UseMutationOptions<any, TError, { title?: string; clientId?: string }, TContext>;
   }
 ) => {
-  return useMutation<any, TError, { title?: string }, TContext>({
-    mutationFn: ({ title }) =>
+  return useMutation<any, TError, { title?: string; clientId?: string }, TContext>({
+    mutationFn: ({ title, clientId }) =>
       safeFetch<any>("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title || "Untitled" }),
+        body: JSON.stringify({ title: title || "Untitled", client_id: clientId || undefined }),
       }),
+    ...options?.mutation,
+  });
+};
+
+export const useHeartbeat = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; clientId?: string }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string; clientId?: string }, TContext>({
+    mutationFn: ({ sessionId, clientId }) =>
+      safeFetch<any>(`/api/sessions/${toIntId(sessionId)}/heartbeat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId || undefined }),
+      }),
+    ...options?.mutation,
+  });
+};
+
+export const useDeleteSessionHeartbeat = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; clientId?: string }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string; clientId?: string }, TContext>({
+    mutationFn: ({ sessionId }) =>
+      safeFetch<any>(`/api/sessions/${toIntId(sessionId)}`, { method: "DELETE" }),
     ...options?.mutation,
   });
 };

@@ -13,6 +13,10 @@ class Session(Base):
     created_at: Mapped[str] = mapped_column(String(50))
     updated_at: Mapped[str] = mapped_column(String(50))
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 会话隔离：每个浏览器标签一个 client_id（sessionStorage 生成）
+    client_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # 心跳：前端每 15s ping 一次更新此字段；后台清扫线程据此判断是否离线
+    last_seen_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     materials: Mapped[list["Material"]] = relationship(back_populates="session")
 

@@ -8,6 +8,7 @@ import {
   useGenerateSummary,
   useGetMaterials,
   useCreateSession,
+  useHeartbeat,
   useUploadFile,
   useDownloadLink,
   useProcessSession,
@@ -161,7 +162,41 @@ export default function Workstation() {
   const isMock = false;
 
   const queryClient2 = queryClient;
-  const { data: sessions = [], isFetching: sessionsFetching } = useListSessions();
+  const clientId = useMemo(() => {
+    try {
+      let id = sessionStorage.getItem("smart_scribe_client_id");
+      if (!id) {
+        id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        sessionStorage.setItem("smart_scribe_client_id", id);
+      }
+      return id;
+    } catch { return "anonymous"; }
+  }, []);
+  const { data: sessions = [], isFetching: sessionsFetching } = useListSessions(clientId);
+  const heartbeatMut = useHeartbeat();
+
+  // 心跳：每 15s 续命当前会话；标签关闭时发 DELETE（beforeunload 尽力而为）
+  useEffect(() => {
+    if (!activeSessionId) return;
+    heartbeatMut.mutate({ sessionId: activeSessionId, clientId });
+    const interval = setInterval(() => {
+      heartbeatMut.mutate({ sessionId: activeSessionId, clientId });
+    }, 15000);
+    const onUnload = () => {
+      if (!activeSessionId) return;
+      try {
+        navigator.sendBeacon(
+          `/api/sessions/${activeSessionId}`,
+          new Blob([JSON.stringify({ client_id: clientId })], { type: "application/json" })
+        );
+      } catch {}
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, [activeSessionId, clientId]);
 
   const realSessions = useMemo(
     () => (sessions as any[]).map(s => ({ ...s, id: String(s.id) })),
@@ -233,7 +268,7 @@ export default function Workstation() {
     mutation: {
       onError: (error: any) => {
         setUploadError(error?.message || "处理失败");
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
       },
     },
   });
@@ -241,21 +276,21 @@ export default function Workstation() {
     mutation: {
       onError: (error: any) => {
         setUploadError(error?.message || "转写失败");
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
       },
     },
   });
   const matchMut = useMatchEvidence({
     mutation: {
       onError: () => {
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
       },
     },
   });
   const deleteMut = useDeleteSession({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setDeleteTarget(null);
       },
     },
@@ -313,7 +348,7 @@ export default function Workstation() {
   const goToNextMaterial = () => setMediaIndex(i => Math.min(previewMaterials.length - 1, i + 1));
 
   const invalidateAll = (sessionId = activeSessionId) => {
-    queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+    queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
     if (!sessionId) return;
     queryClient2.invalidateQueries({ queryKey: getGetEvidenceBlocksQueryKey(sessionId) });
     queryClient2.invalidateQueries({ queryKey: getGetMaterialsQueryKey(sessionId) });
@@ -348,9 +383,9 @@ export default function Workstation() {
     try {
       const needCreate = !realSessions.some(s => s.id === activeSessionId);
       if (needCreate) {
-        const created = await createSessionMut.mutateAsync({ title: baseName.slice(0, 80) });
+        const created = await createSessionMut.mutateAsync({ clientId, title: baseName.slice(0, 80) });
         sessionId = String(created.id);
-        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setActiveSessionId(sessionId);
         setUploadErrorSessionId(sessionId);
         setProcessingSessionId(sessionId);
@@ -440,7 +475,7 @@ export default function Workstation() {
         } catch {}
         const created = await createSessionMut.mutateAsync({ title });
         sessionId = String(created.id);
-        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setActiveSessionId(sessionId);
         setUploadErrorSessionId(sessionId);
         setProcessingSessionId(sessionId);
@@ -523,7 +558,7 @@ export default function Workstation() {
               const newTitle = e.target.value.trim();
               if (newTitle && activeSessionId && !isMock && newTitle !== activeSession?.title) {
                 renameMut.mutate({ sessionId: activeSessionId, title: newTitle });
-                queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
               }
             }}
             className="bg-transparent border-none outline-none focus:ring-1 ring-primary rounded px-2 text-sm font-medium w-64 max-md:hidden"
@@ -542,9 +577,9 @@ export default function Workstation() {
             onClick={async () => {
               setCreatingSession(true);
               try {
-                const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                const created = await createSessionMut.mutateAsync({ clientId, title: "新会话" });
                 const sid = String(created.id);
-                await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
                 setActiveSessionId(sid);
               } finally {
                 setCreatingSession(false);
@@ -675,9 +710,9 @@ export default function Workstation() {
               onClick={async () => {
                 setCreatingSession(true);
                 try {
-                  const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                  const created = await createSessionMut.mutateAsync({ clientId, title: "新会话" });
                   const sid = String(created.id);
-                  await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                  await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
                   setActiveSessionId(sid);
                 } finally {
                   setCreatingSession(false);
@@ -713,7 +748,7 @@ export default function Workstation() {
                     onBlur={() => {
                       if (renameDraft.trim() && renameDraft.trim() !== s.title) {
                         renameMut.mutate({ sessionId: s.id, title: renameDraft.trim() });
-                        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                        queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
                       }
                       setRenamingId(null);
                     }}
@@ -1026,9 +1061,9 @@ export default function Workstation() {
                 onClick={async () => {
                   setCreatingSession(true);
                   try {
-                    const created = await createSessionMut.mutateAsync({ title: "新会话" });
+                    const created = await createSessionMut.mutateAsync({ clientId, title: "新会话" });
                     const sid = String(created.id);
-                    await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey() });
+                    await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
                     setActiveSessionId(sid);
                     setShowMobileMenu(false);
                   } finally {
@@ -1111,7 +1146,7 @@ export default function Workstation() {
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
-                      用完即焚模式：生成总结后约 {ephemeralInfo.ttl ?? 60} 秒会删除该会话的媒体与记录，请及时复制结果。
+                      关闭标签后清除模式：关闭此浏览器标签约 {ephemeralInfo.ttl ?? 60} 秒后，该会话的媒体与记录将被自动删除，请及时复制结果。
                     </span>
                   </div>
                 )}

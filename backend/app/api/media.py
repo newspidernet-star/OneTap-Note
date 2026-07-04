@@ -36,18 +36,42 @@ def _storage_url(file_path: str | None) -> str | None:
 
 
 @router.get("/api/sessions", response_model=list[SessionOut])
-def list_sessions(db: Session = Depends(get_db)):
-    return db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+def list_sessions(client_id: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(SessionModel)
+    if client_id:
+        q = q.filter(SessionModel.client_id == client_id)
+    return q.order_by(SessionModel.created_at.desc()).all()
 
 
 @router.post("/api/sessions", response_model=SessionOut)
 async def create_session(body: SessionCreate, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc).isoformat()
-    s = SessionModel(title=body.title, status="created", created_at=now, updated_at=now)
+    s = SessionModel(
+        title=body.title,
+        status="created",
+        created_at=now,
+        updated_at=now,
+        client_id=body.client_id,
+        last_seen_at=now,
+    )
     db.add(s)
     db.commit()
     db.refresh(s)
     return s
+
+
+@router.post("/api/sessions/{session_id}/heartbeat")
+def heartbeat(session_id: int, body: dict | None = None, db: Session = Depends(get_db)):
+    """前端每 15s 调一次，续命 last_seen_at。后台清扫线程据此判断是否离线。"""
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # 可选：允许在 body 里校验 client_id 归属
+    if body and body.get("client_id") and session.client_id and session.client_id != body["client_id"]:
+        raise HTTPException(status_code=403, detail="Session belongs to another client")
+    session.last_seen_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {"ok": True, "last_seen_at": session.last_seen_at}
 
 
 @router.post("/api/media/upload", response_model=UploadResponse)

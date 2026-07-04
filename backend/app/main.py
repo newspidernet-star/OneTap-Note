@@ -14,6 +14,7 @@ from app.api.speech import router as speech_router
 from app.api.summary import router as summary_router
 from app.config import get_settings
 from app.database import init_db
+from app.services.sweeper import start_sweeper
 
 
 def create_app() -> FastAPI:
@@ -26,6 +27,8 @@ def create_app() -> FastAPI:
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
 
     init_db()
+    # ephemeral=true 时启动后台清扫线程（本地默认 false，不扫）
+    start_sweeper()
 
     app = FastAPI(title="Smart Scribe", version="0.1.0")
     app.add_middleware(

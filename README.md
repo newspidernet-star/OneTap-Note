@@ -91,6 +91,20 @@ npm run dev
 | `paddleocr_cloud_key` | 仅云端 OCR 必填 | 调 PaddleOCR 云端 API | [百度 AI Studio](https://aistudio.baidu.com/paddleocr) → 访问令牌 |
 | `ytdlp_cookie_path` | 可选 | yt-dlp 抓取需登录的视频 | 见 [yt-dlp cookies 文档](https://github.com/yt-dlp/yt-dlp/wiki/Extractors-And-Authentication) |
 
+**也可以用环境变量预配 key**（优先于设置页，适合不想在网页里手填的场景）：
+
+```dotenv
+# backend/.env（或容器/平台的环境变量）
+SMART_SCRIBE_DASHSCOPE_API_KEY=sk-xxx
+SMART_SCRIBE_DEEPSEEK_API_KEY=sk-xxx
+SMART_SCRIBE_PADDLEOCR_CLOUD_KEY=xxx
+# 可选：
+SMART_SCRIBE_DASHSCOPE_WORKSPACE_ID=xxx
+SMART_SCRIBE_YTDLP_COOKIE_PATH=/path/to/cookies.txt
+```
+
+凡是由环境变量提供的 key，设置页会显示 **"✓ 由部署者配置"** 并禁用对应输入框，避免误填覆盖。
+
 ---
 
 ## 在 Windows 上启动
@@ -315,20 +329,25 @@ smart-scribe/
 ├── backend/
 │   ├── app/
 │   │   ├── api/           # FastAPI 路由：media / speech / summary / settings
-│   │   ├── services/      # ocr.py / qwen_asr.py / summarizer.py / title_generator.py / crypto.py
+│   │   ├── services/      # ocr.py / qwen_asr.py / summarizer.py / title_generator.py / crypto.py / tunnel.py
 │   │   ├── models/ schemas/ config.py main.py
 │   ├── storage/           # 上传文件 + SQLite DB（gitignore）
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── requirements-windows.txt   # Windows 云端 OCR 依赖子集（剔除 paddleocr）
 ├── frontend/
 │   ├── src/pages/Workstation.tsx        # 工作台主页
 │   ├── src/components/                  # SummaryHeroCard / IslandButton / UploadProgress
 │   ├── src/lib/api.ts                   # TanStack Query 封装
 │   └── vite.config.ts                   # 含 /api /static /ws 代理
+├── scripts/
+│   ├── setup-windows.ps1                # Windows 一键安装（被 start-windows.bat 调用）
+│   └── start-windows.ps1                # Windows 一键启动
 ├── docs/
 │   ├── DEVLOG.md          # 逐项开发日志
 │   └── superpowers/specs/ # 设计文档
 ├── docker-compose.yml     # 仅后端；前端自行 npm run dev/build
+├── start-windows.bat      # Windows 双击入口（首次安装，之后启动）
 ├── PRODUCT.md             # 产品定位与设计原则
 └── AGENTS.md              # AI 协作说明
 ```

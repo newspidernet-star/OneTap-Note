@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class SessionCreate(BaseModel):
     title: str = "Untitled"
+    client_id: str | None = None
 
 
 class SessionOut(BaseModel):
@@ -12,6 +13,7 @@ class SessionOut(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
     error_message: str | None = None
+    client_id: str | None = None
 
     class Config:
         from_attributes = True
