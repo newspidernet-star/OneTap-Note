@@ -103,11 +103,11 @@ const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: a
 const MOCK_SESSION_ID = "mock_demo";
 
 const SETTINGS_FIELDS = [
-  { key: "dashscope_api_key", label: "DashScope API Key", required: true, placeholder: "sk-..." },
-  { key: "dashscope_workspace_id", label: "DashScope Workspace ID", required: false, placeholder: "可选，专属工作空间 ID" },
-  { key: "deepseek_api_key", label: "DeepSeek API Key", required: true, placeholder: "sk-..." },
-  { key: "paddleocr_cloud_key", label: "PaddleOCR Cloud Key", required: false, placeholder: "AI Studio API Key（可选）" },
-  { key: "ytdlp_cookie_path", label: "yt-dlp Cookie 路径", required: false, placeholder: "可选，本机 cookies.txt 路径" },
+  { key: "dashscope_api_key", label: "DashScope API Key", required: true, placeholder: "sk-...（阿里云百炼控制台 → API-KEY 管理）" },
+  { key: "dashscope_workspace_id", label: "DashScope Workspace ID", required: false, placeholder: "如 ws-mw8ay5bl73cfmmue（只填 ID 段，不要整个域名；空着走默认）" },
+  { key: "deepseek_api_key", label: "DeepSeek API Key", required: true, placeholder: "sk-...（DeepSeek 开放平台 → API Keys）" },
+  { key: "paddleocr_cloud_key", label: "PaddleOCR Cloud Key", required: false, placeholder: "如 a30cf4ca...（百度 AI Studio → 访问令牌；云端 OCR 必填）" },
+  { key: "ytdlp_cookie_path", label: "yt-dlp Cookie 路径", required: false, placeholder: "本机 cookies.txt 绝对路径（抓需登录视频时用，一般不用）" },
 ];
 
 function isAudioVideoName(name: string): boolean {
