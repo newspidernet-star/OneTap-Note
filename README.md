@@ -78,6 +78,8 @@ cd frontend && npm install && npm run dev
 - 复制 `sk-...` 填入设置页 `dashscope_api_key`
 - **可选**：如果你有专属业务空间，把 workspace ID（形如 `ws-mw8ay5bl73cfmmue`，**只填 ID 段，不要整个域名**）填入 `dashscope_workspace_id`，会走专属域名更快更稳；空着走默认 `dashscope.aliyuncs.com`
 
+![获取 DashScope API Key 演示](docs/get-dashscope-token.gif)
+
 ### 3. PaddleOCR Cloud Key（云端 OCR 必填）
 
 - 打开 [百度 AI Studio PaddleOCR](https://aistudio.baidu.com/paddleocr) → 登录
