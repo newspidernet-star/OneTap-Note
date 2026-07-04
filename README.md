@@ -49,7 +49,7 @@
 | 前端 | Vite + React 18 + TypeScript · TailwindCSS v4 · Radix UI · TanStack Query · framer-motion |
 | OCR | [PaddleOCR 云端 API](https://aistudio.baidu.com/paddleocr)（默认）或本地 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) |
 | 语音转写 | 阿里云百炼 [Fun-ASR 录音文件识别](https://help.aliyun.com/zh/model-studio/fun-asr-recorded-speech-recognition-http-api) |
-| AI 总结 | DeepSeek Chat |
+| AI 总结 | DeepSeek V4 |
 
 ---
 
