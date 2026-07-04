@@ -26,6 +26,25 @@ def _read_url(stream, out: dict) -> None:
             out["url"] = m.group(0)
 
 
+def _wait_until_reachable(url: str, timeout: float = 15.0) -> None:
+    """隧道 URL 出现在 cloudflared 输出里 ≠ Cloudflare 边缘已传播路由。
+    自己 HTTP 探测直到能访问，避免 ASR 立刻去拉导致 FILE_DOWNLOAD_FAILED。
+    """
+    import httpx
+    deadline = time.time() + timeout
+    last_err = None
+    while time.time() < deadline:
+        try:
+            r = httpx.get(f"{url}/api/health", timeout=5, follow_redirects=True)
+            if r.status_code == 200:
+                logger.info("tunnel readiness check passed: %s", url)
+                return
+        except Exception as e:
+            last_err = e
+        time.sleep(1)
+    logger.warning("tunnel readiness check timed out (last err: %s); proceeding anyway", last_err)
+
+
 def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
     """启动 cloudflared quick tunnel，返回公网根地址。进程级单例。"""
     global _TUNNEL_URL, _PROC
@@ -52,6 +71,9 @@ def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
         while time.time() < deadline:
             if out.get("url"):
                 _TUNNEL_URL = out["url"]
+                logger.info("cloudflared quick tunnel URL obtained: %s", _TUNNEL_URL)
+                logger.info("waiting for tunnel to become reachable...")
+                _wait_until_reachable(_TUNNEL_URL)
                 logger.info("cloudflared quick tunnel 就绪: %s", _TUNNEL_URL)
                 return _TUNNEL_URL
             if _PROC.poll() is not None:

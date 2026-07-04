@@ -160,8 +160,24 @@ def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> 
             "且自动隧道未能启动。请设置 SMART_SCRIBE_PUBLIC_BASE_URL 指向本服务公网地址，"
             "或安装 cloudflared 让 SMART_SCRIBE_TUNNEL=auto 自动建立临时隧道。"
         )
-    task_id = _submit_funasr(public_url, api_key, workspace_id)
-    data = _poll_funasr(task_id, api_key, workspace_id)
+    # ASR 提交+轮询，遇到 FILE_DOWNLOAD_FAILED 重试（隧道可能刚通还没完全传播）
+    max_attempts = 3
+    last_err = None
+    for attempt in range(max_attempts):
+        try:
+            task_id = _submit_funasr(public_url, api_key, workspace_id)
+            data = _poll_funasr(task_id, api_key, workspace_id)
+            break
+        except ValueError as e:
+            last_err = e
+            if "FILE_DOWNLOAD_FAILED" in str(e) and attempt < max_attempts - 1:
+                logger.warning("ASR FILE_DOWNLOAD_FAILED (attempt %d/%d), retrying in 5s...",
+                               attempt + 1, max_attempts)
+                time.sleep(5)
+                continue
+            raise
+    else:
+        raise last_err
     result = _download_funasr(data)
     segments = _parse_filetrans_response(result)
     # Map numeric speaker_id → "说话人1", "说话人2", …

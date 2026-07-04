@@ -308,6 +308,21 @@ export default function Workstation() {
   const deleteMut = useDeleteSession({
     mutation: {
       onSuccess: () => {
+        // 清理被删会话残留的处理状态，避免切到别的会话时还显示"处理中"
+        setProcessingSessionId(null);
+        setUploadRunning(false);
+        setUploadError(null);
+        setUploadErrorSessionId(null);
+        setGenerateError(null);
+        // reset 正在飞的 mutation，让 isPending 归 false
+        uploadMut.reset();
+        downloadLinkMut.reset();
+        processMut.reset();
+        transcribeMut.reset();
+        // 取消属于被删会话的查询
+        queryClient.cancelQueries({ queryKey: getGetMaterialsQueryKey(deleteTarget?.id || "") });
+        queryClient.cancelQueries({ queryKey: getGetEvidenceBlocksQueryKey(deleteTarget?.id || "") });
+        queryClient.cancelQueries({ queryKey: getGetSummaryResultQueryKey(deleteTarget?.id || "") });
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setDeleteTarget(null);
       },
