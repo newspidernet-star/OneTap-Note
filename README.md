@@ -228,19 +228,19 @@ npm run dev
 
 由 `SMART_SCRIBE_OCR_MODE` 控制，**改完需重启**：
 
-### `local`（默认，零外部依赖）
+### `cloud`（默认，推荐）
 
-镜像内置 PaddleOCR + PaddlePaddle，本地推理。吃 CPU/内存，但不需要任何百度账号，适合离线/隐私场景。
-
-### `cloud`（推荐生产，快且不吃本机资源）
-
-调百度 AI Studio 的 [PaddleOCR 云端服务](https://aistudio.baidu.com/paddleocr)：
+调百度 AI Studio 的 [PaddleOCR 云端服务](https://aistudio.baidu.com/paddleocr)，模型 `PP-OCRv6`：
 
 1. 注册 AI Studio 账号，开通 PaddleOCR 服务
 2. 在控制台拿到访问令牌（Access Token）
 3. 设置页填入 `paddleocr_cloud_key`
 
-后端走 `https://paddleocr.aistudio-app.com/api/v2/ocr/jobs`，模型用 `PP-OCRv6`，自带限流重试（429 退避）。
+后端走 `https://paddleocr.aistudio-app.com/api/v2/ocr/jobs`，自带限流重试（429 退避）。快、不吃本机资源，适合大多数场景。
+
+### `local`（离线/隐私场景）
+
+设 `SMART_SCRIBE_OCR_MODE=local` 切回本地推理。镜像内置 PaddleOCR + PaddlePaddle，吃 CPU/内存，但不需要任何百度账号，适合离线/隐私场景。
 
 ---
 

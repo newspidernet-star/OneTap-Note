@@ -6,4 +6,4 @@ services:
     volumes:
       - ./backend/storage:/app/storage
     environment:
-      - SMART_SCRIBE_OCR_MODE=local
+      - SMART_SCRIBE_OCR_MODE=cloud
