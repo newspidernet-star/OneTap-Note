@@ -41,7 +41,13 @@ cd smart-scribe
 
 > 仅云端 OCR；语音转写时自动起 cloudflared 临时隧道供阿里云回拉。脚本自动探测本机 `127.0.0.1:7897` 代理（clash 默认端口）；下载慢可先 `set HTTPS_PROXY=http://127.0.0.1:7897` 再双击。
 
-### 路径二：Docker（跨平台）
+**行为说明**：
+- 首次运行：自动安装（几分钟），装完自动启动，浏览器打开 `http://localhost:8000`。
+- 之后每次双击：**不会重装**（venv/依赖/前端都在），几秒启动，浏览器自动打开。
+- **关掉 cmd 窗口 = 服务停止**。下次用再双击 bat 即可。
+- 填一次 API Key 后**永久保存**（存在 `backend/storage/` 的 SQLite，AES 加密），不用每次重填。
+
+### 路径二：Docker（跨平台，推荐服务器部署）
 
 ```bash
 git clone https://github.com/newspidernet-star/smart-scribe.git
@@ -52,6 +58,12 @@ cd frontend && npm install && npm run dev
 ```
 
 后端 `http://localhost:8000`（`/api/health` 健康检查），前端 `http://localhost:5173`（自动代理 `/api`、`/static`、`/ws` 到后端）。镜像含 ffmpeg / PaddleOCR / Playwright Chromium。
+
+**行为说明**：
+- `docker compose up -d` 后台常驻，**关掉终端不停**。
+- 容器崩溃 / 服务器重启会**自动恢复**（已设 `restart: unless-stopped`）。
+- 想停：`docker compose down`；想看日志：`docker compose logs -f`。
+- 生产部署：前端 `npm run build` 出 `dist/`，后端自动托管（单端口 8000）；或用 Nginx 反代。
 
 > **Windows 提示**：Vite v5 默认监听 IPv6 `[::1]:5173`，用 `http://127.0.0.1:5173` 会 `ERR_CONNECTION_REFUSED`。请用 `http://localhost:5173`；若坚持用 IP，启动时加 `--host 127.0.0.1`：`npm run dev -- --host 127.0.0.1`。
 
