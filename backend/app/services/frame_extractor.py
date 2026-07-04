@@ -11,6 +11,7 @@ FPS = 2
 PREVIEW_WIDTH = 480
 SIMILARITY_THRESHOLD = 0.95
 MIN_TEXT_AREA = 0.005
+MAX_KEYFRAMES = 30  # 最多保留 N 个关键帧送 OCR，避免长视频几百帧把云端 OCR 打爆
 
 _log = logging.getLogger("smart_scribe")
 
@@ -78,7 +79,7 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
         original_h = int(streams[0]["height"])
         height = int(original_h * PREVIEW_WIDTH / original_w)
 
-        # 短视频逐帧看，避免结尾画面/快速字幕被漏掉；长视频保持低采样省资源
+        # 短视频逐帧看，避免结尾画面/快速字幕被漏掉；长视频降采样省资源
         r_frame_rate = streams[0].get("r_frame_rate", "30/1")
         try:
             num, den = r_frame_rate.split("/")
@@ -89,8 +90,12 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
             sample_fps = min(native_fps, 30.0)
         elif duration <= 10:
             sample_fps = 5.0
+        elif duration <= 60:
+            sample_fps = 2.0   # 1-10 分钟：2fps
+        elif duration <= 300:
+            sample_fps = 1.0   # 5-10 分钟：1fps
         else:
-            sample_fps = FPS
+            sample_fps = 0.5   # >5 分钟：0.5fps，避免帧数爆炸
     except Exception:
         _log.warning("ffprobe failed for %s", video_path)
         return []
@@ -200,6 +205,15 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
                 candidates.append((end_ts, 1.0))
     except Exception:
         pass
+
+    # 长视频候选太多时，只保留文字得分最高的 N 个，按时间重排
+    if len(candidates) > MAX_KEYFRAMES:
+        _log.info(f"[FRAMES] {len(candidates)} candidates > {MAX_KEYFRAMES} cap, keeping top {MAX_KEYFRAMES} by text_score")
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        candidates = candidates[:MAX_KEYFRAMES]
+        candidates.sort(key=lambda x: x[0])
+
+    _log.info(f"[FRAMES] {len(candidates)} keyframes selected from {len(frames)} sampled frames")
 
     paths = []
     for i, (ts, _) in enumerate(candidates):
