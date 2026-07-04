@@ -16,6 +16,7 @@ import {
   useDeleteSession,
   useRenameSession,
   useGetSettings,
+  useGetEphemeral,
   useUpdateSettings,
   getGetEvidenceBlocksQueryKey,
   getGetSummaryResultQueryKey,
@@ -264,6 +265,7 @@ export default function Workstation() {
   const { data: settingsStatus = [] } = useGetSettings({
     query: { enabled: showSettings, queryKey: getGetSettingsQueryKey() },
   });
+  const { data: ephemeralInfo } = useGetEphemeral();
   const updateSettingsMut = useUpdateSettings({
     mutation: {
       onSuccess: () => {
@@ -489,6 +491,7 @@ export default function Workstation() {
   );
   const handleSaveSettings = async () => {
     const changed = SETTINGS_FIELDS
+      .filter(field => !settingsByKey.get(field.key)?.from_env)
       .map(field => ({
         key: field.key,
         value: (settingsDraft[field.key] || "").trim(),
@@ -1104,9 +1107,18 @@ export default function Workstation() {
                 </button>
               </div>
               <div className="p-5 space-y-5">
+                {ephemeralInfo?.enabled && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      用完即焚模式：生成总结后约 {ephemeralInfo.ttl ?? 60} 秒会删除该会话的媒体与记录，请及时复制结果。
+                    </span>
+                  </div>
+                )}
                 {SETTINGS_FIELDS.map(field => {
                   const status = settingsByKey.get(field.key);
                   const isSet = Boolean(status?.is_set);
+                  const fromEnv = Boolean(status?.from_env);
                   return (
                     <div key={field.key} className="space-y-1.5">
                       <label className="text-xs font-mono text-muted-foreground">
@@ -1114,14 +1126,16 @@ export default function Workstation() {
                         <span className={`ml-2 text-[10px] font-sans ${field.required ? "text-red-400" : "text-muted-foreground"}`}>
                           {field.required ? "必填" : "可选"}
                         </span>
-                        {isSet && <span className="ml-2 text-[10px] text-emerald-400 font-sans">已保存</span>}
+                        {fromEnv && <span className="ml-2 text-[10px] text-emerald-400 font-sans">✓ 由部署者配置</span>}
+                        {!fromEnv && isSet && <span className="ml-2 text-[10px] text-emerald-400 font-sans">已保存</span>}
                       </label>
                       <input
                         type="password"
-                        value={settingsDraft[field.key] || ""}
+                        value={fromEnv ? "" : (settingsDraft[field.key] || "")}
                         onChange={e => setSettingsDraft(d => ({ ...d, [field.key]: e.target.value }))}
-                        placeholder={isSet ? "已保存，留空保持不变" : field.placeholder}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:border-primary outline-none font-mono"
+                        disabled={fromEnv}
+                        placeholder={fromEnv ? "已由部署者通过环境变量配置，无需填写" : (isSet ? "已保存，留空保持不变" : field.placeholder)}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:border-primary outline-none font-mono disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </div>
                   );

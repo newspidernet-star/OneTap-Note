@@ -1,10 +1,12 @@
+import os
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.models import ApiSettings
 from app.schemas.settings import SettingsUpdate, TestResult
-from app.services.crypto import decrypt, encrypt
+from app.services.crypto import decrypt, encrypt, get_secret
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -17,12 +19,24 @@ REQUIRED_KEYS = [
 ]
 
 
+def _from_env(key: str) -> bool:
+    """该 key 是否由环境变量 SMART_SCRIBE_<KEY_UPPER> 提供。"""
+    return bool(os.environ.get(f"SMART_SCRIBE_{key.upper()}"))
+
+
 @router.get("")
 async def list_settings(db: Session = Depends(get_db)):
     result = []
     for key, required in REQUIRED_KEYS:
         existing = db.query(ApiSettings).filter_by(key=key).first()
-        result.append({"key": key, "is_set": existing is not None, "is_required": required})
+        from_env = _from_env(key)
+        # is_set：DB 有 或 环境变量有 都算已配置
+        result.append({
+            "key": key,
+            "is_set": existing is not None or from_env,
+            "is_required": required,
+            "from_env": from_env,
+        })
     return result
 
 
@@ -60,3 +74,13 @@ from app.config import get_settings
 @router.get("/ocr-mode")
 async def get_ocr_mode():
     return {"mode": get_settings().ocr_mode, "note": "通过环境变量 SMART_SCRIBE_OCR_MODE 配置，需重启生效"}
+
+
+@router.get("/ephemeral")
+async def get_ephemeral():
+    s = get_settings()
+    return {
+        "enabled": s.ephemeral,
+        "ttl": s.ephemeral_ttl,
+        "note": "用完即焚：生成总结后将自动删除该会话的所有媒体与记录" if s.ephemeral else "",
+    }

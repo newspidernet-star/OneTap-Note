@@ -67,13 +67,13 @@ def _purge_session(session_id: int) -> None:
 
 
 def _schedule_purge_if_ephemeral(session_id: int) -> None:
-    """用完即焚模式：生成完总结后延后删除该会话所有数据。"""
+    """用完即焚模式：生成完总结后延后删除该会话所有数据。
+
+    ephemeral=true 即无条件删除（Fly 共享 box 的隐私语义）。本地默认 ephemeral=false，
+    不会触发。ApiSettings（全局 key 表）不属于会话数据，不受影响。
+    """
     settings = get_settings()
     if not settings.ephemeral:
-        return
-    # 若所有 key 都来自环境变量（DB 里无任何 ApiSettings），才自动删除
-    has_db_keys = SessionLocal().query(ApiSettings).first() is not None
-    if has_db_keys:
         return
     logger.info("[session %s] ephemeral mode: 将在 %ss 后删除", session_id, settings.ephemeral_ttl)
     _purge_session(session_id)

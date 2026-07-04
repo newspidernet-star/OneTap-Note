@@ -262,3 +262,17 @@ export const useUpdateSettings = <TError = unknown, TContext = unknown>(
     ...options?.mutation,
   });
 };
+
+export const getEphemeralQueryKey = () => ["/api/settings/ephemeral"] as const;
+
+export function useGetEphemeral<TData = any, TError = unknown>(
+  options?: { query?: UseQueryOptions<any, TError, TData> }
+) {
+  return useQuery<any, TError, TData>({
+    queryKey: getEphemeralQueryKey(),
+    queryFn: ({ signal }) => safeFetch<any>("/api/settings/ephemeral", { signal }),
+    retry: false,
+    staleTime: 1000 * 60,
+    ...options?.query,
+  });
+}
