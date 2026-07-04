@@ -38,7 +38,8 @@ def _storage_url(file_path: str | None) -> str | None:
 @router.get("/api/sessions", response_model=list[SessionOut])
 def list_sessions(client_id: str | None = None, db: Session = Depends(get_db)):
     q = db.query(SessionModel)
-    if client_id:
+    # 仅在 ephemeral 模式下按 client_id 隔离（共享部署）；本地默认无隔离，自己能看到全部会话
+    if client_id and get_settings().ephemeral:
         q = q.filter(SessionModel.client_id == client_id)
     return q.order_by(SessionModel.created_at.desc()).all()
 

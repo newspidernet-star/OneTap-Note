@@ -175,9 +175,11 @@ export default function Workstation() {
   const { data: sessions = [], isFetching: sessionsFetching } = useListSessions(clientId);
   const heartbeatMut = useHeartbeat();
 
-  // 心跳：每 15s 续命当前会话；标签关闭时发 DELETE（beforeunload 尽力而为）
+  // 心跳：仅 ephemeral 模式下每 15s 续命当前会话；标签关闭时发 DELETE（beforeunload 尽力而为）
+  // 本地默认 ephemeral=false，不发心跳、不隔离，自己用看到全部会话
   useEffect(() => {
     if (!activeSessionId) return;
+    if (!ephemeralInfo?.enabled) return;
     heartbeatMut.mutate({ sessionId: activeSessionId, clientId });
     const interval = setInterval(() => {
       heartbeatMut.mutate({ sessionId: activeSessionId, clientId });
@@ -196,7 +198,7 @@ export default function Workstation() {
       clearInterval(interval);
       window.removeEventListener("beforeunload", onUnload);
     };
-  }, [activeSessionId, clientId]);
+  }, [activeSessionId, clientId, ephemeralInfo?.enabled]);
 
   const realSessions = useMemo(
     () => (sessions as any[]).map(s => ({ ...s, id: String(s.id) })),
