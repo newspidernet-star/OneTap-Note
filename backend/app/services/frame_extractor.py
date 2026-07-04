@@ -9,19 +9,27 @@ from PIL import Image
 
 FPS = 2
 PREVIEW_WIDTH = 480
-SIMILARITY_THRESHOLD = 0.95
+SIMILARITY_THRESHOLD = 0.97  # 0.95→0.97：让"往幻灯片上加文字"不触发场景切换，累积态留在同组
 MIN_TEXT_AREA = 0.005
 MAX_KEYFRAMES = 30  # 最多保留 N 个关键帧送 OCR，避免长视频几百帧把云端 OCR 打爆
+SUBTITLE_BOTTOM_RATIO = 0.20  # 字幕检测区域：底部 20%
+SUBTITLE_SIM_THRESHOLD = 0.85  # 底部相似度低于此值 → 判定该组底部有字幕（文字在变）
 
 _log = logging.getLogger("smart_scribe")
 
 
-def text_score(bgr: np.ndarray) -> float:
+def text_score(bgr: np.ndarray, exclude_bottom_ratio: float = 0.0) -> float:
+    """计算画面文字密度。exclude_bottom_ratio > 0 时裁掉底部（字幕区），避免字幕干扰得分。"""
     try:
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     except Exception:
         return 0.0
     h, w = gray.shape
+    # 排除底部字幕区：字幕和语音转写重复，是噪音
+    if exclude_bottom_ratio > 0:
+        crop_h = int(h * (1 - exclude_bottom_ratio))
+        gray = gray[:crop_h, :]
+        h = crop_h
     try:
         gray = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
     except Exception:
@@ -142,6 +150,7 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
 
 
 def _extract_full_frame(video_path: str, timestamp: float, output_dir: str, filename: str) -> str:
+    """提取完整原图，不裁剪——字幕排除只在选帧逻辑里做，保存的帧保持完整不丢信息。"""
     dest = str(Path(output_dir) / filename)
     try:
         (
@@ -155,7 +164,38 @@ def _extract_full_frame(video_path: str, timestamp: float, output_dir: str, file
     return dest if Path(dest).exists() else ""
 
 
+def _detect_subtitle_in_group(group: list[tuple[float, np.ndarray]]) -> bool:
+    """差分字幕检测：同一场景组内，如果首尾帧整体相似但底部区域不相似，
+    说明底部有'位置固定但内容在变'的文字 = 字幕。
+
+    对"顶部标题 + 长间隔后新标题"不会误判（它们会被分到不同组）。
+    对"上部累积文字"也不会误判（首尾底部相似度高，不触发字幕判定）。
+    """
+    if len(group) < 3:
+        return False
+    first = group[0][1]
+    last = group[-1][1]
+    h = first.shape[0]
+    crop = int(h * (1 - SUBTITLE_BOTTOM_RATIO))
+    overall_sim = frame_similarity(first, last)
+    bottom_sim = frame_similarity(first[crop:, :], last[crop:, :])
+    # 整体相似（同一场景）但底部不相似（底部文字在变）→ 字幕
+    is_subtitle = overall_sim > 0.90 and bottom_sim < SUBTITLE_SIM_THRESHOLD
+    if is_subtitle:
+        _log.info(f"[FRAMES] subtitle detected in group: overall_sim={overall_sim:.3f}, bottom_sim={bottom_sim:.3f}")
+    return is_subtitle
+
+
 def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str]]:
+    """三阶段关键帧提取：分组 → 差分字幕检测 → 每组取文字量最多的帧。
+
+    核心思路：
+    1. 按画面相似度分组（同一幻灯片 = 同一组，加文字不触发切换）
+    2. 对每组做差分字幕检测（底部位置固定但内容在变 = 字幕）
+    3. 每组取 text_score 最高的帧 = 内容累积最完整的那帧
+       - 有字幕的组：排除底部算 score（字幕和 ASR 重复是噪音）
+       - 无字幕的组：正常算 score
+    """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -163,44 +203,52 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
     if not frames:
         return []
 
-    candidates: list[tuple[float, float]] = []
-    try:
-        current_best_score = text_score(frames[0][1])
-    except Exception:
-        current_best_score = 0.0
-    current_best_ts = frames[0][0]
-    prev = frames[0][1]
-
-    for ts, bgr in frames[1:]:
-        try:
-            score = text_score(bgr)
-            sim = frame_similarity(prev, bgr)
-        except Exception:
-            prev = bgr
-            continue
+    # --- 阶段 1：按场景分组 ---
+    groups: list[list[tuple[float, np.ndarray]]] = []
+    current_group = [frames[0]]
+    for i in range(1, len(frames)):
+        sim = frame_similarity(current_group[-1][1], frames[i][1])
         if sim > SIMILARITY_THRESHOLD:
-            if score > current_best_score:
-                current_best_score = score
-                current_best_ts = ts
+            current_group.append(frames[i])
         else:
-            if current_best_score > MIN_TEXT_AREA:
-                candidates.append((current_best_ts, current_best_score))
-            current_best_score = score
-            current_best_ts = ts
-        prev = bgr
+            groups.append(current_group)
+            current_group = [frames[i]]
+    groups.append(current_group)
 
-    if current_best_score > MIN_TEXT_AREA:
-        candidates.append((current_best_ts, current_best_score))
+    # --- 阶段 2+3：每组检测字幕 + 选最优帧 ---
+    candidates: list[tuple[float, float]] = []
+    subtitle_groups = 0
+    for group in groups:
+        if len(group) < 1:
+            continue
+        # 差分字幕检测
+        has_subtitle = _detect_subtitle_in_group(group)
+        if has_subtitle:
+            subtitle_groups += 1
+        exclude_ratio = SUBTITLE_BOTTOM_RATIO if has_subtitle else 0.0
+        # 取该组 text_score 最高的帧 = 累积内容最完整
+        best_ts = group[0][0]
+        best_score = -1.0
+        for ts, bgr in group:
+            try:
+                s = text_score(bgr, exclude_bottom_ratio=exclude_ratio)
+            except Exception:
+                continue
+            if s > best_score:
+                best_score = s
+                best_ts = ts
+        if best_score > MIN_TEXT_AREA:
+            candidates.append((best_ts, best_score))
 
-    # 很多短视频的文字/结尾画面出现在最后一帧；均匀采样可能漏掉它，
-    # 所以显式把临近结尾的一帧也加进候选。
+    _log.info(f"[FRAMES] {len(groups)} scene groups ({subtitle_groups} with subtitle), {len(candidates)} keyframe candidates")
+
+    # 显式把临近结尾的一帧也加进候选（很多短视频结尾画面有总结）
     try:
         probe = ffmpeg.probe(video_path)
         duration = float(probe["format"]["duration"])
         last_sampled_ts = frames[-1][0] if frames else 0.0
         if duration - last_sampled_ts > 0.2:
             end_ts = duration * 0.98
-            # 避免和最后一个候选重复
             if not candidates or abs(candidates[-1][0] - end_ts) > 0.2:
                 candidates.append((end_ts, 1.0))
     except Exception:
@@ -221,6 +269,7 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
         path = _extract_full_frame(video_path, ts, output_dir, filename)
         if path:
             paths.append((ts, path))
+    return paths
     return paths
 
 
