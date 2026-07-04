@@ -236,6 +236,13 @@ npm run dev
 2. 在控制台拿到访问令牌（Access Token）
 3. 设置页填入 `paddleocr_cloud_key`
 
+<details>
+<summary>📊 获取 Access Token 演示（点击展开 GIF）</summary>
+
+![获取 PaddleOCR Token 演示](docs/get-paddleocr-token.gif)
+
+</details>
+
 后端走 `https://paddleocr.aistudio-app.com/api/v2/ocr/jobs`，自带限流重试（429 退避）。快、不吃本机资源，适合大多数场景。
 
 ### `local`（离线/隐私场景）
