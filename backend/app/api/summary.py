@@ -52,7 +52,7 @@ def run_generate(session_id: int, db: Session = Depends(get_db)):
         clear_summary(session_id, db)
         t0 = time.time()
         result = generate_summary(session_id, db)
-        logger.info(f"🤖 [session {session_id}] DeepSeek 生成完成, 耗时 {time.time()-t0:.2f}s")
+        logger.info(f"[AI] session {session_id}: DeepSeek done, {time.time()-t0:.2f}s")
         t1 = time.time()
         verification = verify_citations(result, session_id, db)
         result["_citation_valid"] = verification["valid"]
@@ -65,7 +65,7 @@ def run_generate(session_id: int, db: Session = Depends(get_db)):
             new_title = generate_title(source_text, db)
             if new_title:
                 session.title = new_title
-        logger.info(f"✅ [session {session_id}] 保存+校验+标题, 耗时 {time.time()-t1:.2f}s")
+        logger.info(f"[OK] session {session_id}: saved+verified+title, {time.time()-t1:.2f}s")
 
         session.status = "done"
         session.error_message = None

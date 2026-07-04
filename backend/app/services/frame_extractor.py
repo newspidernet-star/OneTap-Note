@@ -110,6 +110,8 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
     frames = []
     idx = 0
     raw_size = PREVIEW_WIDTH * height * 3
+    expected = int(duration * sample_fps) if duration else 0
+    _log.info(f"[FRAMES] streaming {video_path}: duration={duration:.1f}s, sample_fps={sample_fps}, expect ~{expected} frames")
     while True:
         try:
             raw = proc.stdout.read(raw_size)
@@ -124,6 +126,8 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
         ts = min(idx / sample_fps, duration)
         frames.append((ts, bgr))
         idx += 1
+        if idx % 100 == 0:
+            _log.info(f"[FRAMES] ... {idx} frames read ({ts:.1f}s/{duration:.1f}s)")
 
     try:
         proc.terminate()
