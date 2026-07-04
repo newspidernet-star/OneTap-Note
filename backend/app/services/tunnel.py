@@ -18,7 +18,7 @@ _URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.IGNORECASE)
 def _read_url(stream, out: dict) -> None:
     for line in iter(stream.readline, ""):
         text = line.decode("utf-8", "ignore") if isinstance(line, bytes) else line
-        logger.info("[cloudflared] %s", text.rstrip())
+        logger.debug("[cloudflared] %s", text.rstrip())
         if out.get("url"):
             continue
         m = _URL_RE.search(text)

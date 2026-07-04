@@ -238,7 +238,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
     try:
         t0 = time.time()
         specs = download(url, session_id, cookie_path=cookie_path)
-        logger.info(f"[session {session_id}] 下载完成: {len(specs)} 个文件, 耗时 {time.time()-t0:.2f}s")
+        logger.info(f"📥 [session {session_id}] 下载完成: {len(specs)} 个文件, 耗时 {time.time()-t0:.2f}s")
     except Exception as e:
         _log.warning("Download failed for %s: %s", url, e, exc_info=True)
         raise HTTPException(status_code=400, detail=f"下载失败: {e}")

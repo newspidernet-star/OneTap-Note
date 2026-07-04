@@ -39,7 +39,7 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
     video_path = resolve_storage_path(material.file_path)
     t0 = time.time()
     keyframes = extract_keyframes(video_path, str(frames_dir))
-    logger.info(f"[session {material.session_id}] 抽帧完成: {len(keyframes)} 帧, 耗时 {time.time()-t0:.2f}s")
+    logger.info(f"📂 [session {material.session_id}] 抽帧完成: {len(keyframes)} 帧, 耗时 {time.time()-t0:.2f}s")
 
     if not keyframes:
         # Fallback: use old extract_and_dedup if OpenCV keyframes failed
@@ -55,7 +55,7 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
     for idx, (ts, fp) in enumerate(keyframes):
         if idx < len(results) and results[idx].text.strip():
             ocr_results.append((idx, ts, fp, results[idx]))
-    logger.info(f"[session {material.session_id}] OCR 完成: {len(ocr_results)}/{len(keyframes)} 帧有文字, 耗时 {time.time()-t1:.2f}s")
+    logger.info(f"🔍 [session {material.session_id}] OCR 完成: {len(ocr_results)}/{len(keyframes)} 帧有文字, 耗时 {time.time()-t1:.2f}s")
 
     if not ocr_results:
         return len(keyframes), 0, []
@@ -129,7 +129,7 @@ def _process_image(material: Material, db: Session) -> tuple[int, int, list[str]
     image_path = resolve_storage_path(material.file_path)
     t0 = time.time()
     result = ocr_image(image_path, db)
-    logger.info(f"[session {material.session_id}] 图片 OCR 完成: 文字长度 {len(result.text)}, 耗时 {time.time()-t0:.2f}s")
+    logger.info(f"🔍 [session {material.session_id}] 图片 OCR 完成: 文字长度 {len(result.text)}, 耗时 {time.time()-t0:.2f}s")
     if not result.text.strip():
         return 1, 0, []
     block_id = _next_p_id(material.session_id)
@@ -192,7 +192,7 @@ def _commit_with_retry(db: Session, session_id: int, op: str) -> None:
 def process_session(session_id: int, db: Session) -> ProcessingResult:
     t_start = time.time()
     materials = db.query(Material).filter_by(session_id=session_id).order_by(Material.sort_order).all()
-    logger.info(f"[session {session_id}] 开始处理, 素材数={len(materials)}")
+    logger.info(f"⚙️  [session {session_id}] 开始处理, 素材数={len(materials)}")
     result = ProcessingResult()
     all_blocks = []
     for m in materials:
@@ -212,5 +212,5 @@ def process_session(session_id: int, db: Session) -> ProcessingResult:
         # 每处理完一个素材就提交，避免长时间持锁
         _commit_with_retry(db, session_id, "material")
     result.evidence_block_ids = all_blocks
-    logger.info(f"[session {session_id}] 处理完成: {result.frames_count} 帧, {result.ocr_pages_count} 证据块, 总耗时 {time.time()-t_start:.2f}s")
+    logger.info(f"✅ [session {session_id}] 处理完成: {result.frames_count} 帧, {result.ocr_pages_count} 证据块, 总耗时 {time.time()-t_start:.2f}s")
     return result

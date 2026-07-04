@@ -45,9 +45,9 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
     try:
         audio_path = prepare_audio(material)
         t0 = time.time()
-        logger.info(f"[session {session_id}] 开始语音转写, 音频={audio_path}")
+        logger.info(f"🎙️  [session {session_id}] 开始语音转写, 音频={audio_path}")
         await asyncio.to_thread(_run_transcribe, audio_path, session_id)
-        logger.info(f"[session {session_id}] 语音转写完成, 耗时 {time.time()-t0:.2f}s")
+        logger.info(f"✅ [session {session_id}] 语音转写完成, 耗时 {time.time()-t0:.2f}s")
     except Exception as e:
         msg = str(e)
         if "NO_WORDS" in msg or "ALGO_INVALID_PARAM_AUDIO_FORMAT" in msg or "NO_AUDIO_STREAM" in msg:

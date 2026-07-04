@@ -23,6 +23,10 @@ def create_app() -> FastAPI:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    # 降噪：httpx 请求日志、jieba 调试、uvicorn access log 太吵，淹没了处理进度
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("jieba").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     settings = get_settings()
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
 
