@@ -3,7 +3,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.models import ApiSettings
-from app.services.crypto import decrypt
+from app.services.crypto import get_secret
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -31,10 +31,10 @@ def generate_title(text: str, db: Session) -> str | None:
     if not text or not text.strip():
         return None
 
-    record = db.query(ApiSettings).filter_by(key="deepseek_api_key").first()
+    record = get_secret(db, "deepseek_api_key")
     if not record:
         return None
-    api_key = decrypt(record.encrypted_value)
+    api_key = record
 
     sample = text.strip()[:1500]
 

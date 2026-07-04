@@ -10,7 +10,7 @@ from app.api.deps import get_db
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Material, Match, Summary, Session as SessionModel, Transcript, TranscriptSegment
 from app.schemas.media import MaterialOut, SessionCreate, SessionOut, UploadResponse
-from app.services.crypto import decrypt
+from app.services.crypto import get_secret
 from app.services.pipeline import process_session
 from app.services.downloader import download
 from app.services.storage import classify_media, resolve_storage_path, save_upload
@@ -195,13 +195,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    cookie_record = db.query(ApiSettings).filter_by(key="ytdlp_cookie_path").first()
-    cookie_path = None
-    if cookie_record and cookie_record.encrypted_value:
-        try:
-            cookie_path = decrypt(cookie_record.encrypted_value)
-        except Exception:
-            cookie_path = None
+    cookie_path = get_secret(db, "ytdlp_cookie_path")
 
     try:
         t0 = time.time()

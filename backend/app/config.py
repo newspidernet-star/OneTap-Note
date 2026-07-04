@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # 对应环境变量 SMART_SCRIBE_TUNNEL
     tunnel: str = "auto"
     tunnel_target_port: int = 8000
+    # 用完即焚：生成总结后自动删除该会话的媒体+DB记录（多人共用部署，如 Fly）
+    ephemeral: bool = False
+    ephemeral_ttl: int = 60
+    # 前端构建产物目录（Fly/生产部署用；留空则自动探测 ../frontend/dist）
+    frontend_dist_dir: str = ""
 
     class Config:
         env_file = ".env"

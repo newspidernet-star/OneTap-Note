@@ -32,3 +32,19 @@ def decrypt(ciphertext: str) -> str:
     nonce, ct = raw[:12], raw[12:]
     aesgcm = AESGCM(key)
     return aesgcm.decrypt(nonce, ct, None).decode()
+
+
+def get_secret(db, key: str) -> str | None:
+    """读取一个 API key/凭证：环境变量 SMART_SCRIBE_<KEY_UPPER> 优先，其次 AES 加密的 DB 行。
+
+    这样 Fly 等平台可用 secrets 注入 key（不落库、不入设置页）；本地仍可用设置页。
+    """
+    env_name = f"SMART_SCRIBE_{key.upper()}"
+    val = os.environ.get(env_name)
+    if val:
+        return val
+    from app.models import ApiSettings  # 延迟导入避免循环
+    record = db.query(ApiSettings).filter_by(key=key).first()
+    if record and record.encrypted_value:
+        return decrypt(record.encrypted_value)
+    return None

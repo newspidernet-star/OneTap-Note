@@ -1,0 +1,37 @@
+# Smart Scribe — Fly 部署（用完即焚模式）
+# 前后端在同一个镜像里，单进程，无持久卷（重启即清空磁盘）。
+# 用法：fly launch（首次会引导创建 app）；或 fly deploy。
+
+app = "smart-scribe"
+primary_region = "nrt"  # 东京；按目标用户就近改，如 'hkg' 'sjc' 'fra'
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  SMART_SCRIBE_OCR_MODE = "cloud"
+  SMART_SCRIBE_TUNNEL = "auto"
+  SMART_SCRIBE_EPHEMERAL = "true"
+  SMART_SCRIBE_EPHEMERAL_TTL = "60"
+  # 阿里云 ASR 回拉需公网地址；Fly 自带公网域名，用 https://<app>.fly.dev
+  # 若用自定义域名，改成 SMART_SCRIBE_PUBLIC_BASE_URL=https://your-domain
+  SMART_SCRIBE_PUBLIC_BASE_URL = ""
+
+# API Key 等机密用 fly secrets 注入（不写在这里）：
+#   fly secrets set SMART_SCRIBE_DEEPSEEK_API_KEY=...
+#   fly secrets set SMART_SCRIBE_DASHSCOPE_API_KEY=...
+#   fly secrets set SMART_SCRIBE_PADDLEOCR_CLOUD_KEY=...
+
+[http_service]
+  internal_port = 8000
+  auto_stop_machines = false
+  auto_start_machines = false
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 2
+    soft_limit = 1
+
+# 1 个共享 CPU、512MB（ffmpeg/Chromium 吃内存，够单次任务；可按需调大）
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -5,7 +5,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models import ApiSettings, EvidenceBlock, Match
-from app.services.crypto import decrypt
+from app.services.crypto import get_secret
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -69,10 +69,9 @@ def _parse_json_content(content: str) -> dict:
 
 
 def call_deepseek(prompt: str, db: Session) -> dict:
-    record = db.query(ApiSettings).filter_by(key="deepseek_api_key").first()
-    if not record:
-        raise ValueError("DeepSeek API key 未配置")
-    api_key = decrypt(record.encrypted_value)
+    api_key = get_secret(db, "deepseek_api_key")
+    if not api_key:
+        raise ValueError("DeepSeek API key 未配置（设置页或 SMART_SCRIBE_DEEPSEEK_API_KEY 环境变量）")
 
     last_error: Exception | None = None
     last_raw: str | None = None

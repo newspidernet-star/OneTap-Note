@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import ApiSettings
-from app.services.crypto import decrypt
+from app.services.crypto import get_secret
 
 
 @dataclass
@@ -127,10 +126,9 @@ def _ocr_cloud(image_path: str, api_key: str) -> OcrResult:
 def ocr_image(image_path: str, db: Session) -> OcrResult:
     settings = get_settings()
     if settings.ocr_mode == "cloud":
-        record = db.query(ApiSettings).filter_by(key="paddleocr_cloud_key").first()
-        if not record or not record.encrypted_value:
-            raise ValueError("云端 OCR 未配置 API key")
-        api_key = decrypt(record.encrypted_value)
+        api_key = get_secret(db, "paddleocr_cloud_key")
+        if not api_key:
+            raise ValueError("云端 OCR 未配置 API key（设置页或 SMART_SCRIBE_PADDLEOCR_CLOUD_KEY 环境变量）")
         return _ocr_cloud(image_path, api_key)
     return _ocr_local(image_path)
 
@@ -152,9 +150,8 @@ def _ocr_cloud_parallel(image_paths: list[str], api_key: str) -> list[OcrResult]
 def ocr_batch(image_paths: list[str], db: Session) -> list[OcrResult]:
     settings = get_settings()
     if settings.ocr_mode == "cloud":
-        record = db.query(ApiSettings).filter_by(key="paddleocr_cloud_key").first()
-        if not record or not record.encrypted_value:
-            raise ValueError("云端 OCR 未配置 API key")
-        api_key = decrypt(record.encrypted_value)
+        api_key = get_secret(db, "paddleocr_cloud_key")
+        if not api_key:
+            raise ValueError("云端 OCR 未配置 API key（设置页或 SMART_SCRIBE_PADDLEOCR_CLOUD_KEY 环境变量）")
         return _ocr_cloud_parallel(image_paths, api_key)
     return [ocr_image(p, db) for p in image_paths]

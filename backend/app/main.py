@@ -58,9 +58,9 @@ def create_app() -> FastAPI:
 
         app.add_middleware(TunnelGuardMiddleware)
 
-    # 一键启动 / 生产模式：若前端已构建（frontend/dist），由后端直接托管，
-    # 省去单独跑 vite dev server。开发模式仍用 npm run dev（:5173 代理到 :8000）。
-    frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    # 一键启动 / 生产模式：若前端已构建，由后端直接托管（SPA fallback）。
+    # 开发模式仍用 npm run dev（:5173 代理到 :8000）。
+    frontend_dist = Path(settings.frontend_dist_dir) if settings.frontend_dist_dir else (Path(__file__).resolve().parents[2] / "frontend" / "dist")
     if frontend_dist.exists():
         @app.get("/{full_path:path}")
         async def _spa(full_path: str):

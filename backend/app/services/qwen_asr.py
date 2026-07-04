@@ -7,18 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Transcript, TranscriptSegment
-from app.services.crypto import decrypt
+from app.services.crypto import get_secret
 from app.services.tunnel import resolve_public_base_url
 
 FUNASR_MODEL = "fun-asr"
 
 
 def _get_credentials(db: Session) -> tuple[str, str | None]:
-    key = db.query(ApiSettings).filter_by(key="dashscope_api_key").first()
+    key = get_secret(db, "dashscope_api_key")
     if not key:
-        raise ValueError("DashScope API key 未配置")
-    workspace = db.query(ApiSettings).filter_by(key="dashscope_workspace_id").first()
-    return decrypt(key.encrypted_value), decrypt(workspace.encrypted_value) if workspace else None
+        raise ValueError("DashScope API key 未配置（设置页或 SMART_SCRIBE_DASHSCOPE_API_KEY 环境变量）")
+    workspace = get_secret(db, "dashscope_workspace_id")
+    return key, workspace
 
 
 def _base_url(workspace_id: str | None) -> str:
