@@ -69,7 +69,7 @@ cd frontend && npm install && npm run dev
 - 左侧菜单 **API Keys** → **创建 API Key**
 - 复制 `sk-...` 填入设置页 `deepseek_api_key`
 
-<video src="docs/get-deepseek-token.mp4" controls autoplay loop muted playsinline></video>
+![获取 DeepSeek API Key 演示](docs/get-deepseek-token.gif)
 
 ### 2. DashScope API Key（必填，语音转写）
 
@@ -78,7 +78,7 @@ cd frontend && npm install && npm run dev
 - 复制 `sk-...` 填入设置页 `dashscope_api_key`
 - **可选**：如果你有专属业务空间，把 workspace ID（形如 `ws-mw8ay5bl73cfmmue`，**只填 ID 段，不要整个域名**）填入 `dashscope_workspace_id`，会走专属域名更快更稳；空着走默认 `dashscope.aliyuncs.com`
 
-<video src="docs/get-dashscope-token.mp4" controls autoplay loop muted playsinline></video>
+![获取 DashScope API Key 演示](docs/get-dashscope-token.gif)
 
 ### 3. PaddleOCR Cloud Key（云端 OCR 必填）
 
@@ -86,7 +86,7 @@ cd frontend && npm install && npm run dev
 - 开通 PaddleOCR 服务
 - 个人中心 → **访问令牌** → 复制 token（形如 `a30cf4ca...`）填入设置页 `paddleocr_cloud_key`
 
-<video src="docs/get-paddleocr-token.mp4" controls autoplay loop muted playsinline></video>
+![获取 PaddleOCR Token 演示](docs/get-paddleocr-token.gif)
 
 后端走 `https://paddleocr.aistudio-app.com/api/v2/ocr/jobs`，模型 `PP-OCRv6`，自带限流重试（429 退避）。
 
@@ -323,9 +323,9 @@ smart-scribe/
 │   ├── setup-windows.ps1                # Windows 一键安装（被 start-windows.bat 调用）
 │   └── start-windows.ps1                # Windows 一键启动
 ├── docs/
-│   ├── get-deepseek-token.mp4        # 获取 DeepSeek API Key 演示
-│   ├── get-dashscope-token.mp4       # 获取 DashScope API Key 演示
-│   ├── get-paddleocr-token.mp4       # 获取 PaddleOCR Token 演示
+│   ├── get-deepseek-token.gif         # 获取 DeepSeek API Key 演示
+│   ├── get-dashscope-token.gif        # 获取 DashScope API Key 演示
+│   ├── get-paddleocr-token.gif        # 获取 PaddleOCR Token 演示
 │   ├── DEVLOG.md          # 逐项开发日志
 │   └── superpowers/specs/ # 设计文档
 ├── docker-compose.yml     # 仅后端；前端自行 npm run dev/build
