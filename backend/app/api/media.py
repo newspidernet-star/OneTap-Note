@@ -183,7 +183,10 @@ def _delete_session_impl(session_id: int, db: Session) -> dict:
 
     storage_dir = get_settings().storage_dir / f"session_{session_id}"
     if storage_dir.exists():
-        shutil.rmtree(str(storage_dir))
+        try:
+            shutil.rmtree(str(storage_dir))
+        except Exception as e:
+            logger.warning("delete_session rmtree failed for session %s: %s", session_id, e)
 
     return {"ok": True}
 

@@ -311,6 +311,9 @@ export default function Workstation() {
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setDeleteTarget(null);
       },
+      onError: (err: any) => {
+        alert(`删除失败：${err?.message || '未知错误'}\n\n如果是文件被占用，等几秒后重试。`);
+      },
     },
   });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
@@ -795,7 +798,7 @@ export default function Workstation() {
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: s.id, title: s.title }); }}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 max-md:opacity-100 max-md:min-w-[32px] max-md:min-h-[32px] max-md:flex max-md:items-center max-md:justify-center max-md:text-muted-foreground/50 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all"
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md ${s.status === 'failed' || s.status === 'processing' ? 'opacity-100 text-red-400' : 'opacity-0 group-hover:opacity-100'} max-md:opacity-100 max-md:min-w-[32px] max-md:min-h-[32px] max-md:flex max-md:items-center max-md:justify-center max-md:text-muted-foreground/50 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all`}
                   title="删除"
                 >
                   <Trash2 className="w-3.5 h-3.5 max-md:w-4 max-md:h-4" />
