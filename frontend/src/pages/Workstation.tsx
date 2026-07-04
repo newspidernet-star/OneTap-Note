@@ -174,6 +174,7 @@ export default function Workstation() {
   }, []);
   const { data: sessions = [], isFetching: sessionsFetching } = useListSessions(clientId);
   const heartbeatMut = useHeartbeat();
+  const { data: ephemeralInfo } = useGetEphemeral();
 
   // 心跳：仅 ephemeral 模式下每 15s 续命当前会话；标签关闭时发 DELETE（beforeunload 尽力而为）
   // 本地默认 ephemeral=false，不发心跳、不隔离，自己用看到全部会话
@@ -317,7 +318,6 @@ export default function Workstation() {
   const { data: settingsStatus = [] } = useGetSettings({
     query: { enabled: showSettings, queryKey: getGetSettingsQueryKey() },
   });
-  const { data: ephemeralInfo } = useGetEphemeral();
   const updateSettingsMut = useUpdateSettings({
     mutation: {
       onSuccess: () => {
