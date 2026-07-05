@@ -448,8 +448,9 @@ const AudioPlayer = ({
                   </div>
                 </motion.div>
 
-<motion.div className="relative flex w-full items-center justify-center">
+<motion.div className="flex w-full flex-wrap items-center justify-between gap-2">
                    <motion.div
+                     className="order-2"
                      whileHover={{ scale: 1.1 }}
                      whileTap={{ scale: 0.9 }}
                    >
@@ -473,7 +474,7 @@ const AudioPlayer = ({
 
                     {/* 选帧模式开关 + 帮助按钮（位于控制栏左侧） */}
                     {canCapture && (
-                      <div className="absolute left-0 flex items-center gap-1.5">
+                      <div className="order-1 flex min-w-0 items-center gap-1.5">
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Button
                             onClick={(event) => {
@@ -519,7 +520,7 @@ const AudioPlayer = ({
                     )}
 
                     {/* 音量控制 + 全屏按钮（音量调节位于全屏按钮左侧） */}
-                    <div className="absolute right-0 flex items-center gap-2">
+                    <div className="order-3 ml-auto flex min-w-0 items-center gap-2">
                       <motion.div
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
@@ -550,7 +551,7 @@ const AudioPlayer = ({
                         showTooltip
                         tooltipContent={(value) => `${value}`}
                         aria-label="音量"
-                        className="w-24"
+                        className="w-20 sm:w-24"
                       />
 
                       <motion.div

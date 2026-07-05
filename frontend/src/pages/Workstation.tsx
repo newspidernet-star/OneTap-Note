@@ -32,6 +32,7 @@ import UploadProgress, { UploadStatus } from "@/components/UploadProgress";
 import TimelinePanel from "@/components/TimelinePanel";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast as sonnerToast } from "sonner";
 
 const MOCK_EVIDENCE = [
   { id: "S001", type: "speech", timestamp: "00:12", speaker: "张老师", text: "电磁感应定律是描述磁通量变化产生感应电动势的基本规律。" },
@@ -152,6 +153,7 @@ export default function Workstation() {
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
   const [creatingSession, setCreatingSession] = useState(false);
+  const [appendMode, setAppendMode] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -250,6 +252,7 @@ export default function Workstation() {
     if (uploadRunning) {
       setUploadRunning(false);
     }
+    setAppendMode(false);
   }, [activeSessionId, uploadErrorSessionId, processingSessionId, realSessions]);
 
   // 切换会话后清空链接输入框和生成错误，避免旧状态串到新会话
@@ -262,7 +265,7 @@ export default function Workstation() {
     }
   }, [activeSessionId]);
 
-  const { data: evidence = [] } = useGetEvidenceBlocks(activeSessionId, {
+  const { data: evidence = [], refetch: refetchEvidence } = useGetEvidenceBlocks(activeSessionId, {
     query: { enabled: hasSession, queryKey: getGetEvidenceBlocksQueryKey(activeSessionId) },
   });
   const { data: materials = [], refetch: refetchMaterials } = useGetMaterials(activeSessionId, {
@@ -413,6 +416,7 @@ export default function Workstation() {
     const baseName = arr[0]?.name.replace(/\.[^.]+$/, "") || "Untitled";
     const uploadedHasAudioVideo = arr.some(f => isAudioVideoName(f.name));
     let sessionId = activeSessionId;
+    const wasAppending = appendMode && activeSession?.status === "done";
     setUploadRunning(true);
     setUploadError(null);
     setUploadErrorSessionId(sessionId);
@@ -427,13 +431,19 @@ export default function Workstation() {
         setUploadErrorSessionId(sessionId);
         setProcessingSessionId(sessionId);
       }
+      const existingCount = (materials as any[]).length;
       for (let i = 0; i < arr.length; i++) {
-        await uploadMut.mutateAsync({ sessionId: sessionId!, file: arr[i], sortOrder: i });
+        await uploadMut.mutateAsync({ sessionId: sessionId!, file: arr[i], sortOrder: existingCount + i });
       }
       const proc = await processMut.mutateAsync({ sessionId: sessionId! });
       invalidateAll(sessionId);
       if (uploadedHasAudioVideo) {
         runTranscribe(sessionId!);
+      }
+      if (wasAppending) {
+        sonnerToast.success("素材已追加并处理完成", {
+          description: "新证据已加入时间线，请重新生成 AI 总结以纳入新内容",
+        });
       }
       void proc;
     } catch (error: any) {
@@ -441,6 +451,7 @@ export default function Workstation() {
       invalidateAll(sessionId);
     } finally {
       setUploadRunning(false);
+      setAppendMode(false);
       setProcessingSessionId(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -499,6 +510,7 @@ export default function Workstation() {
     const url = linkInput.trim();
     if (!url) return;
     let sessionId = activeSessionId;
+    const wasAppending = appendMode && activeSession?.status === "done";
     setUploadRunning(true);
     setUploadError(null);
     setUploadErrorSessionId(sessionId);
@@ -524,12 +536,18 @@ export default function Workstation() {
       if (downloadedMaterials.some(m => m.type === "audio" || m.type === "video")) {
         runTranscribe(sessionId!);
       }
+      if (wasAppending) {
+        sonnerToast.success("素材已追加并处理完成", {
+          description: "新证据已加入时间线，请重新生成 AI 总结以纳入新内容",
+        });
+      }
       setLinkInput("");
     } catch (error: any) {
       setUploadError(error?.message || "链接处理失败");
       invalidateAll(sessionId);
     } finally {
       setUploadRunning(false);
+      setAppendMode(false);
       setProcessingSessionId(null);
     }
   };
@@ -542,7 +560,7 @@ export default function Workstation() {
     ? "error"
     : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending
       ? "uploading"
-      : (activeSession?.status === 'done' || activeSession?.status === 'processing')
+      : (activeSession?.status === 'done' || activeSession?.status === 'processing') && !appendMode
         ? "done"
         : "idle";
 
@@ -693,6 +711,15 @@ export default function Workstation() {
                       }
                     }}
                   />
+                  {activeSession?.status === "done" && !appendMode && (
+                    <button
+                      onClick={() => setAppendMode(true)}
+                      className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      追加素材
+                    </button>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
@@ -852,6 +879,12 @@ export default function Workstation() {
               onNext={hasNextMaterial ? goToNextMaterial : undefined}
               hasPrev={hasPrevMaterial}
               hasNext={hasNextMaterial}
+              sessionId={activeSessionId}
+              materialId={currentPreview?.id}
+              onFrameCaptured={() => {
+                refetchEvidence();
+                invalidateAll(activeSessionId);
+              }}
             />
             </div>
 

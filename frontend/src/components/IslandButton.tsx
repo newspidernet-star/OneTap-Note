@@ -29,6 +29,9 @@ interface Props {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  sessionId?: string;
+  materialId?: number;
+  onFrameCaptured?: () => void;
 }
 
 const stageIndex: Record<string, number> = {
@@ -43,6 +46,7 @@ export default function IslandButton({
   status, generable, size = "large", onGenerate, onRegenerate, disabled = false,
   mediaUrl, mediaType, videoRef, errorMessage,
   onPrev, onNext, hasPrev, hasNext,
+  sessionId, materialId, onFrameCaptured,
 }: Props) {
   const hasMedia = !!(mediaUrl && mediaType);
   const isLarge = size === "large";
@@ -100,7 +104,18 @@ export default function IslandButton({
             className="w-full flex flex-col gap-2"
           >
             <div className="relative w-full rounded-3xl overflow-hidden bg-[#eaeaea] dark:bg-black">
-              <AudioPlayer src={mediaUrl} type={mediaType} audioRef={videoRef as any} onPrev={onPrev} onNext={onNext} hasPrev={hasPrev} hasNext={hasNext} />
+              <AudioPlayer
+                src={mediaUrl}
+                type={mediaType}
+                audioRef={videoRef as any}
+                onPrev={onPrev}
+                onNext={onNext}
+                hasPrev={hasPrev}
+                hasNext={hasNext}
+                sessionId={sessionId}
+                materialId={materialId}
+                onFrameCaptured={onFrameCaptured}
+              />
             </div>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs text-emerald-500">

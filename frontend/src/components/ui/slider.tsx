@@ -42,7 +42,7 @@ const Slider = React.forwardRef<
       </SliderPrimitive.Track>
       {showTooltip ? (
         <TooltipProvider delayDuration={0}>
-          <Tooltip open>
+          <Tooltip>
             <TooltipTrigger asChild>{thumb}</TooltipTrigger>
             <TooltipContent side="top" showArrow>
               {tooltipContent ? tooltipContent(Number(currentValue ?? 0)) : currentValue}

@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Film, Mic2, ImageIcon, Play } from "lucide-react";
+import { Film, Hand, Mic2, ImageIcon, Play } from "lucide-react";
 
 interface EvidenceBlock {
   id: string;
@@ -8,6 +8,7 @@ interface EvidenceBlock {
   timestamp: any;
   speaker?: string;
   text: string;
+  is_manual?: boolean;
 }
 
 interface TimelinePanelProps {
@@ -155,11 +156,17 @@ export default function TimelinePanel({
                           {speech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
                           {block.id}
                         </span>
+                        {block.is_manual && (
+                          <span className="h-[22px] px-1.5 inline-flex items-center gap-1 rounded-md bg-amber-400/15 text-[10px] font-bold text-amber-600 dark:text-amber-300">
+                            <Hand className="w-3 h-3" />
+                            手动
+                          </span>
+                        )}
                         <span className="truncate">
                           {speech
                             ? displaySpeaker(block)
                             : block.type === "video_frame"
-                              ? "视频帧"
+                              ? (block.is_manual ? "手动选帧" : "视频帧")
                               : block.type === "image" || block.type === "screen"
                                 ? "课件截图"
                                 : "文档页面"}
