@@ -115,7 +115,9 @@ def _stream_frames(video_path: str) -> list[tuple[float, np.ndarray]]:
         "-an", "-sn", "pipe:1",
     ]
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # stderr=DEVNULL：ffmpeg 会往 stderr 写大量进度信息，如果用 PIPE 但不读，
+        # 管道缓冲区满后 ffmpeg 会阻塞写 stderr → stdout 也停 → 死锁（10分钟卡死根因）
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except Exception:
         _log.warning("ffmpeg pipe failed for %s", video_path)
         return []
@@ -187,14 +189,14 @@ def _detect_subtitle_in_group(group: list[tuple[float, np.ndarray]]) -> bool:
 
 
 def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str]]:
-    """三阶段关键帧提取：分组 → 差分字幕检测 → 每组取文字量最多的帧。
+    """增量幻灯片重建：不是每帧 OCR，而是模拟"看 PPT 翻页"的过程。
 
-    核心思路：
-    1. 按画面相似度分组（同一幻灯片 = 同一组，加文字不触发切换）
-    2. 对每组做差分字幕检测（底部位置固定但内容在变 = 字幕）
-    3. 每组取 text_score 最高的帧 = 内容累积最完整的那帧
-       - 有字幕的组：排除底部算 score（字幕和 ASR 重复是噪音）
-       - 无字幕的组：正常算 score
+    流程：
+    1. FFmpeg 抽帧（自适应 fps）
+    2. 按帧差异分组（同一幻灯片 = 同一组，加文字不触发切换）
+    3. 差分字幕检测（底部固定位置文字在变 = 字幕，排除）
+    4. 每组只 OCR 最后一帧（累积态最完整）→ 大幅减少 OCR 调用
+    5. 长视频最多 30 个关键帧
     """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -203,29 +205,32 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
     if not frames:
         return []
 
-    # --- 阶段 1：按场景分组 ---
+    # --- 阶段 1：按场景分组（增量检测）---
     groups: list[list[tuple[float, np.ndarray]]] = []
     current_group = [frames[0]]
     for i in range(1, len(frames)):
         sim = frame_similarity(current_group[-1][1], frames[i][1])
         if sim > SIMILARITY_THRESHOLD:
+            # 画面稳定（同一幻灯片 + 可能加了文字）→ 继续累积
             current_group.append(frames[i])
         else:
+            # 画面大幅变化 → 翻页，保存当前组，开始新组
             groups.append(current_group)
             current_group = [frames[i]]
     groups.append(current_group)
+    _log.info(f"[FRAMES] {len(groups)} slide groups detected from {len(frames)} sampled frames")
 
-    # --- 阶段 2+3：每组检测字幕 + 选最优帧 ---
+    # --- 阶段 2：每组选最优帧（字幕检测 + 取累积最完整帧）---
     candidates: list[tuple[float, float]] = []
     subtitle_groups = 0
     for gi, group in enumerate(groups):
         if len(group) < 1:
             continue
-        # 差分字幕检测（只比较首尾帧，快）
+        # 差分字幕检测
         has_subtitle = _detect_subtitle_in_group(group)
         if has_subtitle:
             subtitle_groups += 1
-            # 有字幕：需要排除底部算 score，对全组跑 text_score 找上部文字最多的帧
+            # 有字幕：排除底部算 score，找上部文字最多的帧
             exclude_ratio = SUBTITLE_BOTTOM_RATIO
             best_ts = group[0][0]
             best_score = -1.0
@@ -238,7 +243,7 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
                     best_score = s
                     best_ts = ts
         else:
-            # 无字幕：直接取最后一帧（累积态最完整），不跑 text_score 省时间
+            # 无字幕：取最后一帧 = 累积态最完整（5s 加第一点 → 15s 三点全 → 取 15s 那帧）
             best_ts = group[-1][0]
             try:
                 best_score = text_score(group[-1][1])
@@ -247,11 +252,11 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
         if best_score > MIN_TEXT_AREA:
             candidates.append((best_ts, best_score))
         if (gi + 1) % 10 == 0:
-            _log.info(f"[FRAMES] ... processed {gi+1}/{len(groups)} groups")
+            _log.info(f"[FRAMES] ... processed {gi+1}/{len(groups)} slide groups")
 
-    _log.info(f"[FRAMES] {len(groups)} scene groups ({subtitle_groups} with subtitle), {len(candidates)} keyframe candidates")
+    _log.info(f"[FRAMES] {len(groups)} slides ({subtitle_groups} with subtitle), {len(candidates)} with text, from {len(frames)} frames")
 
-    # 显式把临近结尾的一帧也加进候选（很多短视频结尾画面有总结）
+    # 结尾帧兜底
     try:
         probe = ffmpeg.probe(video_path)
         duration = float(probe["format"]["duration"])
@@ -263,14 +268,14 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
     except Exception:
         pass
 
-    # 长视频候选太多时，只保留文字得分最高的 N 个，按时间重排
+    # 长视频最多 MAX_KEYFRAMES 帧
     if len(candidates) > MAX_KEYFRAMES:
-        _log.info(f"[FRAMES] {len(candidates)} candidates > {MAX_KEYFRAMES} cap, keeping top {MAX_KEYFRAMES} by text_score")
+        _log.info(f"[FRAMES] {len(candidates)} > {MAX_KEYFRAMES} cap, keeping top {MAX_KEYFRAMES}")
         candidates.sort(key=lambda x: x[1], reverse=True)
         candidates = candidates[:MAX_KEYFRAMES]
         candidates.sort(key=lambda x: x[0])
 
-    _log.info(f"[FRAMES] {len(candidates)} keyframes selected from {len(frames)} sampled frames")
+    _log.info(f"[FRAMES] {len(candidates)} keyframes selected, extracting full frames...")
 
     paths = []
     for i, (ts, _) in enumerate(candidates):
@@ -278,7 +283,6 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
         path = _extract_full_frame(video_path, ts, output_dir, filename)
         if path:
             paths.append((ts, path))
-    return paths
     return paths
 
 
