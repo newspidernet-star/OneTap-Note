@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import subprocess
 import threading
@@ -45,6 +46,19 @@ def _wait_until_reachable(url: str, timeout: float = 15.0) -> None:
     logger.warning("tunnel readiness check timed out (last err: %s); proceeding anyway", last_err)
 
 
+def _kill_stale_cloudflared() -> None:
+    """杀掉残留的 cloudflared 进程（上次后端被杀但 cloudflared 没跟着退）。"""
+    try:
+        result = subprocess.run(
+            ["taskkill", "/F", "/IM", "cloudflared.exe"],
+            capture_output=True, timeout=5,
+        )
+        if result.returncode == 0:
+            logger.info("killed stale cloudflared process")
+    except Exception:
+        pass
+
+
 def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
     """启动 cloudflared quick tunnel，返回公网根地址。进程级单例。"""
     global _TUNNEL_URL, _PROC
@@ -52,6 +66,11 @@ def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
         if _TUNNEL_URL:
             return _TUNNEL_URL
         target = port or get_settings().tunnel_target_port
+        # 杀掉残留的 cloudflared（上次后端被杀但子进程没跟着退）
+        _kill_stale_cloudflared()
+        # cloudflared 用 QUIC/HTTP2 连 Cloudflare 边缘，标准 HTTP 代理不支持 QUIC，
+        # 继承 HTTPS_PROXY 会导致 cloudflared 启动后立即退出。启动时清除代理变量。
+        tunnel_env = {k: v for k, v in os.environ.items() if not k.lower().endswith("_proxy") and not k.lower().endswith("_proxies")}
         out: dict = {}
         try:
             _PROC = subprocess.Popen(
@@ -59,6 +78,7 @@ def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 bufsize=1,
+                env=tunnel_env,
             )
         except FileNotFoundError:
             raise RuntimeError(
