@@ -1,4 +1,5 @@
 import logging
+import re
 import shutil
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,8 @@ from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Material, Match, Summary, Session as SessionModel, Transcript, TranscriptSegment
 from app.schemas.media import MaterialOut, SessionCreate, SessionOut, UploadResponse
 from app.services.crypto import get_secret
+from app.services.frame_extractor import extract_frame_at
+from app.services.ocr import ocr_batch, ocr_image
 from app.services.pipeline import process_session
 from app.services.downloader import download
 from app.services.storage import classify_media, resolve_storage_path, save_upload, session_storage_dir
@@ -33,6 +36,30 @@ def _storage_url(file_path: str | None) -> str | None:
         except ValueError:
             return None
     return f"/static/media/{rel.as_posix()}"
+
+
+def _next_p_block_id(session_id: int, db: Session) -> str:
+    existing = db.query(EvidenceBlock.block_id).filter(
+        EvidenceBlock.session_id == session_id,
+        EvidenceBlock.block_id.like("P%"),
+    ).all()
+    max_n = 0
+    for (bid,) in existing:
+        m = re.match(r"^P(\d+)$", (bid or "").strip())
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"P{max_n + 1:03d}"
+
+
+def _clear_stale_summary_and_matches(session_id: int, db: Session) -> None:
+    db.query(Summary).filter(Summary.session_id == session_id).delete(synchronize_session=False)
+    valid_ids = [row[0] for row in db.query(EvidenceBlock.id).filter_by(session_id=session_id).all()]
+    if valid_ids:
+        db.query(Match).filter(
+            (~Match.speech_block_id.in_(valid_ids)) | (~Match.screen_block_id.in_(valid_ids))
+        ).delete(synchronize_session=False)
+    else:
+        db.query(Match).delete(synchronize_session=False)
 
 
 @router.get("/api/sessions", response_model=list[SessionOut])
@@ -123,8 +150,12 @@ def process_materials(session_id: int, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
+        pre_block_ids = {b.id for b in db.query(EvidenceBlock).filter_by(session_id=session_id).all()}
         t0 = time.time()
         result = process_session(session_id, db)
+        current_block_ids = {b.id for b in db.query(EvidenceBlock).filter_by(session_id=session_id).all()}
+        if result.evidence_block_ids or (current_block_ids - pre_block_ids):
+            _clear_stale_summary_and_matches(session_id, db)
         logger.info(f"[session {session_id}] process 总耗时 {time.time()-t0:.2f}s")
         session.status = "done"
         session.error_message = None
@@ -216,9 +247,123 @@ def list_evidence(session_id: int, db: Session = Depends(get_db)):
             "page_number": b.page_number,
             "material_id": b.material_id,
             "image_url": _storage_url(b.image_path),
+            "is_manual": bool(b.is_manual),
         }
         for b in blocks
     ]
+
+
+@router.post("/api/media/session/{session_id}/frame")
+def capture_frame(session_id: int, body: dict, db: Session = Depends(get_db)):
+    material_id = body.get("material_id")
+    timestamp = body.get("timestamp")
+    if material_id is None or timestamp is None:
+        raise HTTPException(status_code=400, detail="material_id and timestamp are required")
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    material = db.query(Material).filter_by(id=material_id, session_id=session_id).first()
+    if not material or material.type != "video":
+        raise HTTPException(status_code=404, detail="Video material not found")
+
+    ts = max(0.0, float(timestamp))
+    frames_dir = session_storage_dir(session_id) / "frames"
+    frame_path = extract_frame_at(
+        resolve_storage_path(material.file_path),
+        ts,
+        str(frames_dir),
+        f"manual_{int(ts * 1000)}.jpg",
+    )
+    if not frame_path:
+        raise HTTPException(status_code=500, detail="Frame capture failed")
+
+    result = ocr_image(frame_path, db)
+    block_id = _next_p_block_id(session_id, db)
+    block = EvidenceBlock(
+        block_id=block_id,
+        session_id=session_id,
+        material_id=material.id,
+        type="video_frame",
+        timestamp=ts,
+        text=result.text,
+        image_path=frame_path,
+        is_manual=True,
+    )
+    db.add(block)
+    _clear_stale_summary_and_matches(session_id, db)
+    db.commit()
+    db.refresh(block)
+    return {
+        "id": block.block_id,
+        "type": block.type,
+        "timestamp": block.timestamp,
+        "text": block.text,
+        "material_id": block.material_id,
+        "image_url": _storage_url(block.image_path),
+        "is_manual": bool(block.is_manual),
+    }
+
+
+@router.post("/api/media/session/{session_id}/frames")
+def capture_frames_batch(session_id: int, body: dict, db: Session = Depends(get_db)):
+    material_id = body.get("material_id")
+    timestamps = body.get("timestamps")
+    if material_id is None or not isinstance(timestamps, list):
+        raise HTTPException(status_code=400, detail="material_id and timestamps[] are required")
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    material = db.query(Material).filter_by(id=material_id, session_id=session_id).first()
+    if not material or material.type != "video":
+        raise HTTPException(status_code=404, detail="Video material not found")
+
+    unique_ts = sorted({int(max(0.0, float(ts)) * 1000): max(0.0, float(ts)) for ts in timestamps}.items())
+    unique_ts = unique_ts[:50]
+    frames_dir = session_storage_dir(session_id) / "frames"
+    frame_items: list[tuple[float, str]] = []
+    skipped: list[float] = []
+    for key, ts in unique_ts:
+        frame_path = extract_frame_at(
+            resolve_storage_path(material.file_path),
+            ts,
+            str(frames_dir),
+            f"manual_{key}.jpg",
+        )
+        if frame_path:
+            frame_items.append((ts, frame_path))
+        else:
+            skipped.append(ts)
+
+    results = ocr_batch([path for _, path in frame_items], db) if frame_items else []
+    blocks = []
+    for idx, (ts, frame_path) in enumerate(frame_items):
+        text = results[idx].text if idx < len(results) else ""
+        block_id = _next_p_block_id(session_id, db)
+        block = EvidenceBlock(
+            block_id=block_id,
+            session_id=session_id,
+            material_id=material.id,
+            type="video_frame",
+            timestamp=ts,
+            text=text,
+            image_path=frame_path,
+            is_manual=True,
+        )
+        db.add(block)
+        db.flush()
+        blocks.append({
+            "id": block.block_id,
+            "type": block.type,
+            "timestamp": block.timestamp,
+            "text": block.text,
+            "material_id": block.material_id,
+            "image_url": _storage_url(block.image_path),
+            "is_manual": bool(block.is_manual),
+        })
+    if blocks:
+        _clear_stale_summary_and_matches(session_id, db)
+    db.commit()
+    return {"blocks": blocks, "skipped": skipped}
 
 
 _log = logging.getLogger("smart_scribe")

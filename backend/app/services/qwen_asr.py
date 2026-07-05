@@ -1,3 +1,5 @@
+import logging
+import re as _re
 import subprocess
 import time
 from pathlib import Path
@@ -11,6 +13,20 @@ from app.services.crypto import get_secret
 from app.services.tunnel import resolve_public_base_url
 
 FUNASR_MODEL = "fun-asr"
+logger = logging.getLogger("smart_scribe")
+
+
+def _max_s_block_number(session_id: int, db: Session) -> int:
+    existing = db.query(EvidenceBlock.block_id).filter(
+        EvidenceBlock.session_id == session_id,
+        EvidenceBlock.block_id.like("S%"),
+    ).all()
+    max_n = 0
+    for (bid,) in existing:
+        m = _re.match(r"^S(\d+)$", (bid or "").strip())
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return max_n
 
 
 def _get_credentials(db: Session) -> tuple[str, str | None]:
@@ -192,7 +208,7 @@ def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> 
     return segments
 
 
-def transcribe(audio_path: str, session_id: int, db: Session) -> list[dict]:
+def transcribe(audio_path: str, session_id: int, db: Session, material_id: int | None = None) -> list[dict]:
     api_key, workspace_id = _get_credentials(db)
 
     mp3_path = _ensure_mp3(audio_path)
@@ -202,12 +218,12 @@ def transcribe(audio_path: str, session_id: int, db: Session) -> list[dict]:
         if mp3_path != audio_path:
             Path(mp3_path).unlink(missing_ok=True)
 
-    existing = db.query(Transcript).filter_by(session_id=session_id).first()
+    existing = db.query(Transcript).filter_by(session_id=session_id, material_id=material_id).first()
     if existing:
         db.delete(existing)
         db.flush()
 
-    transcript = Transcript(session_id=session_id)
+    transcript = Transcript(session_id=session_id, material_id=material_id)
     db.add(transcript)
     db.flush()
 
@@ -221,12 +237,17 @@ def transcribe(audio_path: str, session_id: int, db: Session) -> list[dict]:
         )
         db.add(ts)
 
-    db.query(EvidenceBlock).filter_by(session_id=session_id, type="speech").delete()
+    if material_id is not None:
+        db.query(EvidenceBlock).filter_by(session_id=session_id, type="speech", material_id=material_id).delete()
+    else:
+        db.query(EvidenceBlock).filter_by(session_id=session_id, type="speech").delete()
     db.flush()
-    for i, seg in enumerate(segments):
+    next_s = _max_s_block_number(session_id, db) + 1
+    for seg in segments:
         eb = EvidenceBlock(
-            block_id=f"S{i + 1:03d}",
+            block_id=f"S{next_s:03d}",
             session_id=session_id,
+            material_id=material_id,
             type="speech",
             timestamp=seg["start_time"],
             end_timestamp=seg["end_time"],
@@ -234,6 +255,7 @@ def transcribe(audio_path: str, session_id: int, db: Session) -> list[dict]:
             text=seg["text"],
         )
         db.add(eb)
+        next_s += 1
 
     db.commit()
     return segments

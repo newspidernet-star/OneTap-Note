@@ -64,18 +64,18 @@ def _parse_segments(raw: dict) -> list[dict]:
     return segments
 
 
-def transcribe(audio_path: str, session_id: int, db: Session) -> list[dict]:
+def transcribe(audio_path: str, session_id: int, db: Session, material_id: int | None = None) -> list[dict]:
     app_id, token = _get_volcano_credentials(db)
     task_id = _submit_asr_task(audio_path, app_id, token)
     raw = _poll_asr_result(task_id, app_id, token)
     segments = _parse_segments(raw)
 
-    existing = db.query(Transcript).filter_by(session_id=session_id).first()
+    existing = db.query(Transcript).filter_by(session_id=session_id, material_id=material_id).first()
     if existing:
         db.delete(existing)
         db.flush()
 
-    transcript = Transcript(session_id=session_id)
+    transcript = Transcript(session_id=session_id, material_id=material_id)
     db.add(transcript)
     db.flush()
 
