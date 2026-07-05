@@ -13,7 +13,7 @@ from app.schemas.media import MaterialOut, SessionCreate, SessionOut, UploadResp
 from app.services.crypto import get_secret
 from app.services.pipeline import process_session
 from app.services.downloader import download
-from app.services.storage import classify_media, resolve_storage_path, save_upload
+from app.services.storage import classify_media, resolve_storage_path, save_upload, session_storage_dir
 
 logger = logging.getLogger("smart_scribe")
 
