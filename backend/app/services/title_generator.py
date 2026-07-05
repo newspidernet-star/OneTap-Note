@@ -39,11 +39,12 @@ def generate_title(text: str, db: Session) -> str | None:
     sample = text.strip()[:1500]
 
     try:
+        # 分开超时：连接 5s 读取 10s 写入 5s（总约 20s 上限）
         resp = httpx.post(
             DEEPSEEK_URL,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-"model": DEEPSEEK_MODEL,
+                "model": DEEPSEEK_MODEL,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": f"请为以下内容生成标题：\n\n{sample}"},
@@ -52,7 +53,7 @@ def generate_title(text: str, db: Session) -> str | None:
                 "max_tokens": 256,
                 "thinking": {"type": "disabled"},
             },
-            timeout=30,
+            timeout=httpx.Timeout(10.0, connect=5.0),
         )
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]

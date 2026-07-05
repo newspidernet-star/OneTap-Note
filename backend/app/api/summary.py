@@ -60,8 +60,17 @@ def run_generate(session_id: int, db: Session = Depends(get_db)):
         save_summary(result, session_id, db)
 
         # Generate title only on the first successful summary so manual renames are preserved.
+        # 优先用 OCR 文字（画面上的准确），ASR 兜底（ASR 可能把"大江大河"转成"大寻劝"）
         if not had_summary:
-            source_text = result.get("summary") or result.get("corrected_text") or ""
+            ocr_texts = db.query(EvidenceBlock).filter(
+                EvidenceBlock.session_id == session_id,
+                EvidenceBlock.type.in_(["image", "video_frame"]),
+            ).order_by(EvidenceBlock.timestamp).all()
+            ocr_text = " ".join(b.text for b in ocr_texts if b.text)[:1500]
+            asr_text = (result.get("corrected_text") or result.get("summary") or "")[:1500]
+            # OCR 优先（画面文字准确，如项目名"大江大河"），OCR 为空才用 ASR
+            source_text = ocr_text if ocr_text and len(ocr_text) > 10 else asr_text
+            logger.info(f"[TITLE] session {session_id}: OCR text len={len(ocr_text)}, ASR text len={len(asr_text)}, using {'OCR' if ocr_text and len(ocr_text) > 10 else 'ASR'}")
             new_title = generate_title(source_text, db)
             if new_title:
                 session.title = new_title
