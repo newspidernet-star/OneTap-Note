@@ -730,9 +730,11 @@ export default function Workstation() {
                       className="flex items-center gap-2 px-3 py-2.5 max-md:py-2.5 rounded-xl bg-card/80 border hover:border-primary/30 transition-colors group cursor-text"
                     >
                       <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-focus-within:text-primary transition-colors" />
-                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} placeholder="粘贴视频或音频链接..." className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60" />
+                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} disabled={uploadRunning || downloadLinkMut.isPending} onKeyDown={e => { if (e.key === 'Enter' && !uploadRunning) handleAddLink(); }} placeholder={uploadRunning || downloadLinkMut.isPending ? "处理中，请稍候..." : "粘贴视频或音频链接..."} className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60 disabled:opacity-50" />
                     </motion.div>
-                    <button onClick={handleAddLink} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all">添加链接</button>
+                    <button onClick={handleAddLink} disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
+                      {uploadRunning || downloadLinkMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : "添加链接"}
+                    </button>
                   </div>
                 </motion.div>
 )}
