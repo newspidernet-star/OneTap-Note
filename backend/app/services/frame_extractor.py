@@ -166,6 +166,13 @@ def _extract_full_frame(video_path: str, timestamp: float, output_dir: str, file
     return dest if Path(dest).exists() else ""
 
 
+def extract_frame_at(video_path: str, timestamp: float, output_dir: str, filename: str) -> str:
+    """Extract one full-resolution frame at a user-selected timestamp."""
+    ts = max(0.0, float(timestamp))
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    return _extract_full_frame(video_path, ts, output_dir, filename)
+
+
 def _detect_subtitle_in_group(group: list[tuple[float, np.ndarray]]) -> bool:
     """差分字幕检测：同一场景组内，如果首尾帧整体相似但底部区域不相似，
     说明底部有'位置固定但内容在变'的文字 = 字幕。

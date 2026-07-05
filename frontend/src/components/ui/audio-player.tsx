@@ -2,8 +2,31 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AudioLines, ChevronLeft, ChevronRight, Maximize2, Pause, Play } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AudioLines,
+  BookmarkPlus,
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  Loader2,
+  Maximize2,
+  Pause,
+  Play,
+  Plus,
+  Trash2,
+  Volume2,
+  VolumeX,
+  Wand2,
+} from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
+import { useCaptureFramesBatch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import MediaExpanded from "@/components/ui/media-expanded";
 
@@ -21,6 +44,9 @@ type AudioPlayerProps = {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  sessionId?: string;
+  materialId?: number;
+  onFrameCaptured?: () => void;
 };
 
 const formatTime = (seconds: number = 0) => {
@@ -106,17 +132,27 @@ const AudioPlayer = ({
   onNext,
   hasPrev,
   hasNext,
+  sessionId,
+  materialId,
+  onFrameCaptured,
 }: AudioPlayerProps) => {
   const internalRef = useRef<MediaElement | null>(null);
   const mediaRef = externalRef || internalRef;
   const mediaType = useMemo(() => inferMediaType(src, type), [src, type]);
   const isImage = mediaType === "image";
+  const isVideo = mediaType === "video";
+  const canCapture = !!(isVideo && sessionId && materialId != null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [orientation, setOrientation] = useState<"portrait" | "landscape" | "unknown">("unknown");
+  const [volume, setVolume] = useState(100);
+  const [prevVolume, setPrevVolume] = useState(100);
+  const [pickMode, setPickMode] = useState(false);
+  const [pickedFrames, setPickedFrames] = useState<number[]>([]);
+  const batchMut = useCaptureFramesBatch();
 
   const getMedia = () => mediaRef.current;
 
@@ -159,9 +195,80 @@ const AudioPlayer = ({
     }
   };
 
+  const handleVolumeChange = (value: number) => {
+    const media = getMedia();
+    const v = Math.min(Math.max(value, 0), 100);
+    setVolume(v);
+    if (v > 0) setPrevVolume(v);
+    if (media) media.volume = v / 100;
+  };
+
+  const toggleMute = () => {
+    const media = getMedia();
+    if (volume > 0) {
+      setPrevVolume(volume);
+      setVolume(0);
+      if (media) media.volume = 0;
+    } else {
+      const v = prevVolume || 100;
+      setVolume(v);
+      if (media) media.volume = v / 100;
+    }
+  };
+
   const handleEnded = () => {
     setIsPlaying(false);
     syncTime();
+  };
+
+  const getCurrentTime = (): number => {
+    const media = getMedia();
+    return media ? media.currentTime : currentTime;
+  };
+
+  const addCurrentFrame = () => {
+    const ts = getCurrentTime();
+    if (!Number.isFinite(ts)) {
+      toast.error("无法获取当前时间点");
+      return;
+    }
+    const key = Math.round(ts * 100) / 100;
+    setPickedFrames((prev) => {
+      if (prev.some((t) => Math.abs(t - key) < 0.05)) {
+        toast.message("该时间点已选过", { description: formatTime(key) });
+        return prev;
+      }
+      return [...prev, key].sort((a, b) => a - b);
+    });
+  };
+
+  const removeFrame = (ts: number) => {
+    setPickedFrames((prev) => prev.filter((t) => Math.abs(t - ts) > 0.001));
+  };
+
+  const processPickedFrames = () => {
+    if (!canCapture || pickedFrames.length === 0) return;
+    batchMut.mutate(
+      { sessionId: sessionId!, materialId: materialId!, timestamps: pickedFrames },
+      {
+        onSuccess: (data: any) => {
+          const ok = data?.blocks?.length ?? 0;
+          const skip = data?.skipped?.length ?? 0;
+          if (ok > 0) {
+            toast.success(`已抓取 ${ok} 帧`, {
+              description: skip > 0 ? `${skip} 帧抽帧失败已跳过` : "已加入时间线，可重新生成 AI 总结",
+            });
+          } else {
+            toast.error("抓帧失败", { description: "所有帧抽帧均失败" });
+          }
+          setPickedFrames([]);
+          onFrameCaptured?.();
+        },
+        onError: (e: any) => {
+          toast.error("批量抓帧失败", { description: String(e?.message ?? e) });
+        },
+      }
+    );
   };
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -177,6 +284,9 @@ const AudioPlayer = ({
       setOrientation(video.videoHeight > video.videoWidth ? "portrait" : "landscape");
     }
     syncTime();
+    // 初始化音量
+    const media = getMedia();
+    if (media) media.volume = volume / 100;
   };
 
   const openExpanded = () => setIsExpanded(true);
@@ -312,12 +422,22 @@ const AudioPlayer = ({
             {!isImage && (
               <>
                 <motion.div className="flex flex-col gap-y-1 pt-1">
-                  <CustomSlider
-                    value={progress}
-                    onChange={handleSeek}
-                    disabled={!duration}
-                    className="w-full"
-                  />
+                  <div className="relative w-full">
+                    <CustomSlider
+                      value={progress}
+                      onChange={handleSeek}
+                      disabled={!duration}
+                      className="w-full"
+                    />
+                    {pickMode && duration > 0 && pickedFrames.map((ts) => (
+                      <div
+                        key={ts}
+                        className="pointer-events-none absolute top-1/2 z-10 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500"
+                        style={{ left: `${Math.min(100, Math.max(0, (ts / duration) * 100))}%` }}
+                        title={formatTime(ts)}
+                      />
+                    ))}
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-neutral-800 dark:text-white">
                       {formatTime(currentTime)}
@@ -328,48 +448,206 @@ const AudioPlayer = ({
                   </div>
                 </motion.div>
 
-                <motion.div className="relative flex w-full items-center justify-center">
-                  <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        togglePlay();
-                      }}
-                      variant="ghost"
-                      size="icon"
-                      aria-label={isPlaying ? "暂停" : "播放"}
-                      className="h-10 w-10 rounded-full text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-6 w-6" />
-                      ) : (
-                        <Play className="h-6 w-6" />
-                      )}
-                    </Button>
-                  </motion.div>
+<motion.div className="relative flex w-full items-center justify-center">
+                   <motion.div
+                     whileHover={{ scale: 1.1 }}
+                     whileTap={{ scale: 0.9 }}
+                   >
+                     <Button
+                       onClick={(event) => {
+                         event.stopPropagation();
+                         togglePlay();
+                       }}
+                       variant="ghost"
+                       size="icon"
+                       aria-label={isPlaying ? "暂停" : "播放"}
+                       className="h-10 w-10 rounded-full text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white"
+                     >
+                       {isPlaying ? (
+                         <Pause className="h-6 w-6" />
+                       ) : (
+                         <Play className="h-6 w-6" />
+                       )}
+                     </Button>
+                   </motion.div>
 
-                  <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    className="absolute right-0"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="全屏查看"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openExpanded();
-                      }}
-                      className="h-8 w-8 rounded-full text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </Button>
-                  </motion.div>
+                    {/* 选帧模式开关 + 帮助按钮（位于控制栏左侧） */}
+                    {canCapture && (
+                      <div className="absolute left-0 flex items-center gap-1.5">
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPickMode((v) => !v);
+                            }}
+                            variant="ghost"
+                            aria-label={pickMode ? "退出选帧模式" : "进入选帧模式"}
+                            className={cn(
+                              "h-8 gap-1.5 rounded-full px-3 text-xs font-medium text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white",
+                              pickMode && "bg-amber-400/20 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/50"
+                            )}
+                          >
+                            <BookmarkPlus className="h-4 w-4" />
+                            {pickMode ? "选帧中" : "选帧"}
+                          </Button>
+                        </motion.div>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="使用说明"
+                              className="grid h-7 w-7 place-items-center rounded-full text-neutral-500 hover:bg-black/10 hover:text-neutral-700 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
+                            >
+                              <HelpCircle className="h-4 w-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent side="top" align="start" className="w-72 text-sm">
+                            <div className="space-y-2">
+                              <p className="font-semibold">选帧再处理 · 使用说明</p>
+                              <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
+                                <li>点 <span className="font-medium text-foreground">选帧</span> 进入选帧模式</li>
+                                <li>拖动播放头到要补的关键帧位置</li>
+                                <li>点 <span className="font-medium text-foreground">标记当前帧</span> 加入待处理列表（可重复多次）</li>
+                                <li>点 <span className="font-medium text-foreground">处理全部</span> 批量抽帧 + OCR，自动加入时间线</li>
+                                <li>完成后可重新生成 AI 总结，让新帧参与引用</li>
+                              </ol>
+                              <p className="text-xs text-muted-foreground/70">适用于自动抽帧漏掉的 PPT 页 / 关键画面。</p>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+
+                    {/* 音量控制 + 全屏按钮（音量调节位于全屏按钮左侧） */}
+                    <div className="absolute right-0 flex items-center gap-2">
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleMute();
+                          }}
+                          variant="ghost"
+                          size="icon"
+                          aria-label={volume > 0 ? "静音" : "取消静音"}
+                          className="h-8 w-8 rounded-full text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white"
+                        >
+                          {volume > 0 ? (
+                            <Volume2 className="h-4 w-4" />
+                          ) : (
+                            <VolumeX className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </motion.div>
+
+                      <Slider
+                        value={[volume]}
+                        onValueChange={(value) => handleVolumeChange(value[0])}
+                        max={100}
+                        step={1}
+                        showTooltip
+                        tooltipContent={(value) => `${value}`}
+                        aria-label="音量"
+                        className="w-24"
+                      />
+
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="全屏查看"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openExpanded();
+                          }}
+                          className="h-8 w-8 rounded-full text-neutral-800 hover:bg-black/10 hover:text-neutral-800 dark:text-white dark:hover:bg-[#111111d1] dark:hover:text-white"
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </Button>
+                      </motion.div>
+                    </div>
                 </motion.div>
+
+                {/* 选帧面板：进入选帧模式后展开 */}
+                <AnimatePresence>
+                  {pickMode && canCapture && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-3 dark:bg-amber-400/5">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                            <BookmarkPlus className="h-3.5 w-3.5" />
+                            选帧模式
+                            <span className="text-muted-foreground">· 已选 {pickedFrames.length} 帧</span>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); addCurrentFrame(); }}
+                            className="inline-flex h-7 items-center gap-1 rounded-full bg-amber-500 px-2.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            标记当前帧 {formatTime(getCurrentTime())}
+                          </button>
+                        </div>
+
+                        {pickedFrames.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            拖动播放头到要补帧的位置，点「标记当前帧」加入列表。
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {pickedFrames.map((ts) => (
+                              <span
+                                key={ts}
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-mono text-amber-700 dark:text-amber-300"
+                              >
+                                {formatTime(ts)}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); removeFrame(ts); }}
+                                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-amber-400/30"
+                                  aria-label={`移除 ${formatTime(ts)}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {pickedFrames.length > 0 && (
+                          <div className="mt-2 flex items-center justify-end gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPickedFrames([]); }}
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              清空
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); processPickedFrames(); }}
+                              disabled={batchMut.isPending}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                            >
+                              {batchMut.isPending ? (
+                                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 处理中…</>
+                              ) : (
+                                <><Wand2 className="h-3.5 w-3.5" /> 处理全部（{pickedFrames.length}）</>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </>
             )}
           </motion.div>
@@ -384,6 +662,9 @@ const AudioPlayer = ({
         onClose={closeExpanded}
         sourceMediaRef={mediaRef}
         isPlaying={isPlaying}
+        sessionId={sessionId}
+        materialId={materialId}
+        onFrameCaptured={onFrameCaptured}
       />
     </AnimatePresence>
   );

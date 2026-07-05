@@ -1,4 +1,4 @@
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -52,6 +52,7 @@ class EvidenceBlock(Base):
     text: Mapped[str] = mapped_column(Text, default="")
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     material: Mapped["Material"] = relationship(back_populates="evidence_blocks")
 

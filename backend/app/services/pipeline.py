@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import logging
+import re
 import time
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,19 @@ _p_counters: dict[int, int] = {}
 _s_counters: dict[int, int] = {}
 
 
+def _init_p_counter(session_id: int, db: Session) -> None:
+    existing = db.query(EvidenceBlock.block_id).filter(
+        EvidenceBlock.session_id == session_id,
+        EvidenceBlock.block_id.like("P%"),
+    ).all()
+    max_n = 0
+    for (bid,) in existing:
+        m = re.match(r"^P(\d+)$", (bid or "").strip())
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    _p_counters[session_id] = max_n
+
+
 def _next_p_id(session_id: int) -> str:
     _p_counters[session_id] = _p_counters.get(session_id, 0) + 1
     return f"P{_p_counters[session_id]:03d}"
@@ -31,6 +45,19 @@ def _next_p_id(session_id: int) -> str:
 def _next_s_id(session_id: int) -> str:
     _s_counters[session_id] = _s_counters.get(session_id, 0) + 1
     return f"S{_s_counters[session_id]:03d}"
+
+
+def _init_s_counter(session_id: int, db: Session) -> None:
+    existing = db.query(EvidenceBlock.block_id).filter(
+        EvidenceBlock.session_id == session_id,
+        EvidenceBlock.block_id.like("S%"),
+    ).all()
+    max_n = 0
+    for (bid,) in existing:
+        m = re.match(r"^S(\d+)$", (bid or "").strip())
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    _s_counters[session_id] = max_n
 
 
 def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]]:
@@ -166,29 +193,31 @@ def _process_image(material: Material, db: Session) -> tuple[int, int, list[str]
 
 
 def _process_speech(session_id: int, db: Session) -> list[str]:
-    transcript = db.query(Transcript).filter_by(session_id=session_id).first()
-    if not transcript:
+    transcripts = db.query(Transcript).filter_by(session_id=session_id).all()
+    if not transcripts:
         return []
-    segments = db.query(TranscriptSegment).filter_by(transcript_id=transcript.id).order_by(TranscriptSegment.start_time).all()
+    _init_s_counter(session_id, db)
 
     block_ids = []
-    for seg in segments:
-        if not seg.text.strip():
-            continue
-        block_id = _next_s_id(session_id)
-        eb = EvidenceBlock(
-            block_id=block_id,
-            session_id=session_id,
-            material_id=None,
-            type="speech",
-            timestamp=seg.start_time,
-            end_timestamp=seg.end_time,
-            speaker=seg.speaker,
-            text=seg.text,
-        )
-        db.add(eb)
-        db.flush()
-        block_ids.append(block_id)
+    for transcript in transcripts:
+        segments = db.query(TranscriptSegment).filter_by(transcript_id=transcript.id).order_by(TranscriptSegment.start_time).all()
+        for seg in segments:
+            if not seg.text.strip():
+                continue
+            block_id = _next_s_id(session_id)
+            eb = EvidenceBlock(
+                block_id=block_id,
+                session_id=session_id,
+                material_id=transcript.material_id,
+                type="speech",
+                timestamp=seg.start_time,
+                end_timestamp=seg.end_time,
+                speaker=seg.speaker,
+                text=seg.text,
+            )
+            db.add(eb)
+            db.flush()
+            block_ids.append(block_id)
     db.commit()
     return block_ids
 
@@ -210,6 +239,7 @@ def process_session(session_id: int, db: Session) -> ProcessingResult:
     t_start = time.time()
     materials = db.query(Material).filter_by(session_id=session_id).order_by(Material.sort_order).all()
     logger.info(f"[PROC] session {session_id}: start, materials={len(materials)}")
+    _init_p_counter(session_id, db)
     result = ProcessingResult()
     all_blocks = []
     for m in materials:

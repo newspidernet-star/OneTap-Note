@@ -8,7 +8,8 @@ class Transcript(Base):
     __tablename__ = "transcripts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), unique=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    material_id: Mapped[int | None] = mapped_column(ForeignKey("materials.id"), nullable=True)
     segments: Mapped[list["TranscriptSegment"]] = relationship(back_populates="transcript", cascade="all, delete-orphan")
 
 

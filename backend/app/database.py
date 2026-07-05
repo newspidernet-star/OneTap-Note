@@ -46,6 +46,47 @@ def _auto_migrate() -> None:
             if "last_seen_at" not in cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN last_seen_at VARCHAR(50)"))
 
+    if "evidence_blocks" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("evidence_blocks")}
+        with engine.begin() as conn:
+            if "is_manual" not in cols:
+                conn.execute(text("ALTER TABLE evidence_blocks ADD COLUMN is_manual BOOLEAN DEFAULT 0 NOT NULL"))
+
+    if "transcripts" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("transcripts")}
+        uniques = insp.get_unique_constraints("transcripts")
+        needs_material_id = "material_id" not in cols
+        has_session_unique = any("session_id" in (u.get("column_names") or []) for u in uniques)
+        if needs_material_id or has_session_unique:
+            cols_select = "id, session_id, material_id" if not needs_material_id else "id, session_id, NULL"
+            raw = engine.raw_connection()
+            cursor = None
+            try:
+                cursor = raw.cursor()
+                cursor.execute("PRAGMA foreign_keys=OFF")
+                cursor.execute("DROP TABLE IF EXISTS transcripts_new")
+                cursor.execute(
+                    "CREATE TABLE transcripts_new ("
+                    "id INTEGER PRIMARY KEY, "
+                    "session_id INTEGER REFERENCES sessions(id), "
+                    "material_id INTEGER REFERENCES materials(id)"
+                    ")"
+                )
+                cursor.execute(
+                    f"INSERT INTO transcripts_new (id, session_id, material_id) "
+                    f"SELECT {cols_select} FROM transcripts"
+                )
+                cursor.execute("DROP TABLE transcripts")
+                cursor.execute("ALTER TABLE transcripts_new RENAME TO transcripts")
+                raw.commit()
+            finally:
+                try:
+                    if cursor is not None:
+                        cursor.execute("PRAGMA foreign_keys=ON")
+                except Exception:
+                    pass
+                raw.close()
+
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
