@@ -888,6 +888,79 @@ export default function Workstation() {
             />
             </div>
 
+            {activeSession?.status === "done" && !isMock && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-[520px] rounded-xl border border-border/50 bg-muted/20 p-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <Plus className="h-4 w-4 text-primary" />
+                      补充资料
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      给当前会话继续添加视频、音频或图片。新证据会并入时间线，旧总结会失效，需要重新生成。
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setAppendMode((v) => !v)}
+                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                  >
+                    {appendMode ? "收起" : "添加"}
+                  </button>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {appendMode && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadRunning}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                        >
+                          {uploadRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                          上传本地素材
+                        </button>
+                        <button
+                          onClick={() => setAppendMode(false)}
+                          className="inline-flex min-h-10 items-center justify-center rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                        >
+                          取消
+                        </button>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background/50 px-3 py-2">
+                        <LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={linkInput}
+                          onChange={(e) => setLinkInput(e.target.value)}
+                          disabled={uploadRunning || downloadLinkMut.isPending}
+                          onKeyDown={(e) => { if (e.key === "Enter" && linkInput.trim()) handleAddLink(); }}
+                          placeholder="粘贴要补充的视频或音频链接"
+                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
+                        />
+                        <button
+                          onClick={handleAddLink}
+                          disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()}
+                          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-40"
+                        >
+                          添加链接
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+
             {displaySummary && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px] space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -972,7 +1045,33 @@ export default function Workstation() {
                 )}
               </motion.div>
             )}
-            {!displaySummary && !isMock && (
+            {displayEvidence.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px]">
+                <CollapsibleCard icon={ScanLine} title={`完整原文 · ${displayEvidence.length} 块`} defaultOpen={!displaySummary}>
+                  <div className="space-y-2">
+                    {displayEvidence.map((block) => {
+                      const isSpeech = block.type === "speech";
+                      return (
+                        <div key={block.id} className="rounded-lg border border-border/50 bg-background/50 p-3">
+                          <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <span className={`rounded-md px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "bg-blue-500/10 text-blue-500" : "bg-red-500/10 text-red-500"}`}>
+                              {block.id}
+                            </span>
+                            <span className="font-mono">{fmtTimestamp(block.timestamp)}</span>
+                            {block.speaker && <span>{block.speaker}</span>}
+                            {block.is_manual && <span className="rounded-md bg-amber-400/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-300">手动选帧</span>}
+                          </div>
+                          <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/80">
+                            {block.text || "（无文字内容）"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CollapsibleCard>
+              </motion.div>
+            )}
+            {!displaySummary && !isMock && displayEvidence.length === 0 && (
               <div className="text-center text-xs text-muted-foreground/50 py-8">先上传媒体、处理生成证据块后，点击上方按钮生成总结</div>
             )}
             <div className="md:hidden mt-4 w-full max-w-[520px]">
