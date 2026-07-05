@@ -47,15 +47,31 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
         frames = extract_and_dedup(video_path, str(frames_dir))
         return _build_video_blocks(frames, material, db)
 
-    # OCR all keyframes (并发)
+    # OCR with incremental dedup: 先 OCR 所有帧，然后去重——文字大量重复的帧跳过
     t1 = time.time()
     frame_paths = [fp for (_, fp) in keyframes]
     results = ocr_batch(frame_paths, db)
-    ocr_results = []
+    raw_ocr = []
     for idx, (ts, fp) in enumerate(keyframes):
         if idx < len(results) and results[idx].text.strip():
-            ocr_results.append((idx, ts, fp, results[idx]))
-    logger.info(f"[OCR] session {material.session_id}: {len(ocr_results)}/{len(keyframes)} frames have text, {time.time()-t1:.2f}s")
+            raw_ocr.append((idx, ts, fp, results[idx]))
+
+    # 跨帧文字去重：如果当前帧的文字是前一帧的子集（或 90% 重合），跳过——它没有新信息
+    ocr_results = []
+    prev_text = ""
+    skipped = 0
+    for idx, ts, fp, result in raw_ocr:
+        cur_text = result.text.strip()
+        if prev_text and cur_text:
+            # 简单字符级重合度：Jaccard-like
+            overlap = len(set(cur_text) & set(prev_text)) / max(len(set(cur_text) | set(prev_text)), 1)
+            if overlap > 0.85:
+                skipped += 1
+                continue
+        ocr_results.append((idx, ts, fp, result))
+        prev_text = cur_text
+
+    logger.info(f"[OCR] session {material.session_id}: {len(raw_ocr)} frames OCR'd, {skipped} deduped, {len(ocr_results)} kept, {time.time()-t1:.2f}s")
 
     if not ocr_results:
         return len(keyframes), 0, []
