@@ -203,6 +203,38 @@ export const useProcessSession = <TError = unknown, TContext = unknown>(
   });
 };
 
+export const useCaptureFrame = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; materialId: number; timestamp: number }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string; materialId: number; timestamp: number }, TContext>({
+    mutationFn: ({ sessionId, materialId, timestamp }) =>
+      safeFetch<any>(`/api/media/session/${toIntId(sessionId)}/frame`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ material_id: materialId, timestamp }),
+      }),
+    ...options?.mutation,
+  });
+};
+
+export const useCaptureFramesBatch = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; materialId: number; timestamps: number[] }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string; materialId: number; timestamps: number[] }, TContext>({
+    mutationFn: ({ sessionId, materialId, timestamps }) =>
+      safeFetch<any>(`/api/media/session/${toIntId(sessionId)}/frames`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ material_id: materialId, timestamps }),
+      }),
+    ...options?.mutation,
+  });
+};
+
 export const useDeleteSession = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;
