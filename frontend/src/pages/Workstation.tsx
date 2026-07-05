@@ -73,13 +73,13 @@ const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: a
   useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
 
   return (
-    <div className="rounded-xl border border-border/40 bg-card overflow-hidden transition-shadow hover:shadow-sm">
+    <div className="rounded-xl border border-border/70 bg-card/95 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+        className={`w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-muted/60 ${open ? "border-b border-border/60 bg-muted/35" : "bg-card"}`}
       >
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          <Icon className="w-3.5 h-3.5" /> {title}
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground/85">
+          <Icon className="w-4 h-4 text-primary" /> {title}
         </div>
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-muted-foreground">
           <ChevronDown className="w-4 h-4" />
@@ -94,7 +94,7 @@ const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: a
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4">{children}</div>
+            <div className="p-4">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -850,8 +850,8 @@ export default function Workstation() {
           </div>
         </aside>
 
-        <main key={activeSessionId || "empty"} className="flex-1 flex flex-col bg-card max-md:min-h-0 max-md:flex-none">
-          <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 sticky top-0 bg-card z-10">
+        <main key={activeSessionId || "empty"} className="flex-1 flex flex-col bg-background max-md:min-h-0 max-md:flex-none">
+          <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border/50">
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-5 h-5 text-primary" />
               <span className="font-semibold text-base">AI 总结</span>
@@ -868,7 +868,7 @@ export default function Workstation() {
                 />
                 <button
                   onClick={() => setAppendPanelOpen((v) => !v)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-foreground px-3 text-xs font-semibold text-background shadow-sm transition-colors hover:bg-foreground/90"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   补充资料
@@ -929,7 +929,7 @@ export default function Workstation() {
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4 flex flex-col items-center max-md:overflow-visible">
+          <div className="flex-1 overflow-y-auto px-5 pb-5 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible">
             <div id="island-btn">
             <IslandButton
               status={buttonStatus}
@@ -954,7 +954,7 @@ export default function Workstation() {
             </div>
 
             {displaySummary && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px] space-y-3">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px] space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   {displaySummary.citation_valid && (
                     <div className="inline-flex items-center gap-1.5 text-xs text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
@@ -972,7 +972,7 @@ export default function Workstation() {
                       }
                     }}
                     disabled={exportMdMut.isPending}
-                    className="inline-flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-background bg-foreground px-3 py-1.5 rounded-full border border-foreground/20 shadow-sm hover:bg-foreground/90 transition-colors disabled:opacity-50"
                   >
                     {exportMdMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                     复制 MD
@@ -991,12 +991,12 @@ export default function Workstation() {
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.08 }}
-                          className="flex gap-3 p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group"
+                          className="flex gap-3 rounded-lg border border-border/50 bg-background/70 p-3 transition-colors cursor-pointer group hover:border-primary/30 hover:bg-muted/40"
                           onClick={() => {
                             if (kp.citations.length > 0) handleCitationClick(kp.citations[0]);
                           }}
                         >
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-xs font-semibold text-primary mt-0.5 group-hover:scale-110 transition-transform">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-foreground text-background border border-foreground/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform">
                             {idx + 1}
                           </span>
                           <div className="flex-1 min-w-0">
@@ -1015,16 +1015,16 @@ export default function Workstation() {
                   </CollapsibleCard>
                 </motion.div>
 
-                <CollapsibleCard icon={Sparkles} title="摘要" defaultOpen={false}>
-                  <div className="text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
+                <CollapsibleCard icon={Sparkles} title="摘要" defaultOpen={true}>
+                  <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
                 </CollapsibleCard>
 
                 <CollapsibleCard icon={FileText} title="纠错原文" defaultOpen={false}>
-                  <div className="text-[13px] leading-6 text-foreground/70 bg-background/50 rounded-lg p-3">{displaySummary.corrected_text}</div>
+                  <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[13px] leading-6 text-foreground/75">{displaySummary.corrected_text}</div>
                 </CollapsibleCard>
 
                 {displaySummary.unused_block_ids.length > 0 && (
-                  <div className="rounded-xl border border-border/30 bg-card overflow-hidden">
+                  <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 overflow-hidden">
                     <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                       <TriangleAlert className="w-3.5 h-3.5 text-amber-500" /> 未被引用
                     </div>
@@ -1038,13 +1038,13 @@ export default function Workstation() {
               </motion.div>
             )}
             {displayEvidence.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px]">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px]">
                 <CollapsibleCard icon={ScanLine} title={`完整原文 · ${displayEvidence.length} 块`} defaultOpen={!displaySummary}>
                   <div className="space-y-2">
                     {displayEvidence.map((block) => {
                       const isSpeech = block.type === "speech";
                       return (
-                        <div key={block.id} className="rounded-lg border border-border/50 bg-background/50 p-3">
+                        <div key={block.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
                           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                             <span className={`rounded-md px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "bg-blue-500/10 text-blue-500" : "bg-red-500/10 text-red-500"}`}>
                               {block.id}
