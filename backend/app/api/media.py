@@ -247,6 +247,8 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
 
     cookie_path = get_secret(db, "ytdlp_cookie_path")
 
+    # 确保会话存储目录存在（可能被之前的 delete_session 清掉了）
+    session_storage_dir(session_id)
     try:
         t0 = time.time()
         specs = download(url, session_id, cookie_path=cookie_path)
