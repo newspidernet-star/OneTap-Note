@@ -56,20 +56,21 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
         if idx < len(results) and results[idx].text.strip():
             raw_ocr.append((idx, ts, fp, results[idx]))
 
-    # 跨帧文字去重：如果当前帧的文字是前一帧的子集（或 90% 重合），跳过——它没有新信息
+    # 跨帧文字去重：如果当前帧和前一帧文字大量重合，只保留文字量更多的那个
     ocr_results = []
-    prev_text = ""
     skipped = 0
     for idx, ts, fp, result in raw_ocr:
         cur_text = result.text.strip()
-        if prev_text and cur_text:
-            # 简单字符级重合度：Jaccard-like
+        if ocr_results and cur_text:
+            prev_text = ocr_results[-1][3].text.strip()
             overlap = len(set(cur_text) & set(prev_text)) / max(len(set(cur_text) | set(prev_text)), 1)
             if overlap > 0.85:
+                # 高重合 → 合并（保留文字量更多的那个，更新时间戳为较晚的那个）
+                if len(cur_text) > len(prev_text):
+                    ocr_results[-1] = (idx, ts, fp, result)
                 skipped += 1
                 continue
         ocr_results.append((idx, ts, fp, result))
-        prev_text = cur_text
 
     logger.info(f"[OCR] session {material.session_id}: {len(raw_ocr)} frames OCR'd, {skipped} deduped, {len(ocr_results)} kept, {time.time()-t1:.2f}s")
 
