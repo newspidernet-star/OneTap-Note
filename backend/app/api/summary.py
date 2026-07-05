@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.models import Session as SessionModel, Summary
+from app.models import EvidenceBlock, Session as SessionModel, Summary
 from app.schemas.summary import (
     KeyPointOut, MatchResponse, SummaryGenerateResponse, SummaryResultOut, VerificationOut,
 )
@@ -115,3 +115,103 @@ def re_verify(session_id: int, db: Session = Depends(get_db)):
     v = verify_citations(ks, session_id, db)
     u = detect_unused_blocks(ks, session_id, db)
     return VerificationOut(citation_valid=v["valid"], invalid_citations=v["invalid_ids"], unused_block_ids=u)
+
+
+def _fmt_ts(seconds: float) -> str:
+    m = int(seconds) // 60
+    s = int(seconds) % 60
+    return f"{m:02d}:{s:02d}"
+
+
+@router.get("/export/{session_id}")
+def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
+    """导出为 Obsidian 兼容的 Markdown 文档。"""
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    summary = db.query(Summary).filter_by(session_id=session_id).first()
+    if not summary:
+        raise HTTPException(status_code=404, detail="总结结果不存在")
+
+    blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
+    block_map = {b.block_id: b for b in blocks}
+
+    title = session.title or "Untitled"
+    created = session.created_at[:10] if session.created_at else ""
+
+    lines: list[str] = []
+    # --- Frontmatter ---
+    lines.append("---")
+    lines.append(f"title: {title}")
+    if created:
+        lines.append(f"date: {created}")
+    lines.append("tags:")
+    lines.append("  - smart-scribe")
+    lines.append("---")
+    lines.append("")
+
+    # --- 标题 ---
+    lines.append(f"# {title}")
+    lines.append("")
+
+    # --- 元信息 callout ---
+    lines.append("> [!info] 会话信息")
+    lines.append(f"> 创建时间：{session.created_at or '未知'}")
+    lines.append(f"> 证据块数量：{len(blocks)}")
+    if summary.unused_block_ids:
+        lines.append(f"> 未被引用的证据块：{', '.join(summary.unused_block_ids)}")
+    lines.append("")
+
+    # --- 核心要点 ---
+    key_points = summary.key_points or []
+    if key_points:
+        lines.append("## 核心要点")
+        lines.append("")
+        for kp in key_points:
+            point = kp.get("point", "")
+            citations = kp.get("citations", [])
+            if citations:
+                cite_links = " ".join(f"[[#{cid}|{cid}]]" for cid in citations)
+                lines.append(f"- {point} — {cite_links}")
+            else:
+                lines.append(f"- {point}")
+        lines.append("")
+
+    # --- 摘要 ---
+    if summary.summary_markdown:
+        lines.append("## 摘要")
+        lines.append("")
+        lines.append(summary.summary_markdown)
+        lines.append("")
+
+    # --- 纠错原文 ---
+    if summary.corrected_text:
+        lines.append("## 纠错原文")
+        lines.append("")
+        lines.append(summary.corrected_text)
+        lines.append("")
+
+    # --- 证据块时间线 ---
+    if blocks:
+        lines.append("## 证据块时间线")
+        lines.append("")
+        for b in blocks:
+            ts_str = _fmt_ts(b.timestamp)
+            if b.type == "speech":
+                label = f"### {b.block_id} — {ts_str} — {b.speaker or '未知'}"
+            elif b.type in ("video_frame", "image"):
+                label = f"### {b.block_id} — {ts_str} — 第{b.page_number or '?'}页"
+            else:
+                label = f"### {b.block_id} — {ts_str}"
+            lines.append(label)
+            lines.append("")
+            if b.text:
+                lines.append(b.text)
+            if b.image_path:
+                img_name = b.image_path.replace("\\", "/").split("/")[-1]
+                lines.append(f"")
+                lines.append(f"![[{img_name}]]")
+            lines.append("")
+
+    md = "\n".join(lines)
+    return {"markdown": md, "filename": f"{title}.md"}

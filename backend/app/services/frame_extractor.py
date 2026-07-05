@@ -218,27 +218,36 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
     # --- 阶段 2+3：每组检测字幕 + 选最优帧 ---
     candidates: list[tuple[float, float]] = []
     subtitle_groups = 0
-    for group in groups:
+    for gi, group in enumerate(groups):
         if len(group) < 1:
             continue
-        # 差分字幕检测
+        # 差分字幕检测（只比较首尾帧，快）
         has_subtitle = _detect_subtitle_in_group(group)
         if has_subtitle:
             subtitle_groups += 1
-        exclude_ratio = SUBTITLE_BOTTOM_RATIO if has_subtitle else 0.0
-        # 取该组 text_score 最高的帧 = 累积内容最完整
-        best_ts = group[0][0]
-        best_score = -1.0
-        for ts, bgr in group:
+            # 有字幕：需要排除底部算 score，对全组跑 text_score 找上部文字最多的帧
+            exclude_ratio = SUBTITLE_BOTTOM_RATIO
+            best_ts = group[0][0]
+            best_score = -1.0
+            for ts, bgr in group:
+                try:
+                    s = text_score(bgr, exclude_bottom_ratio=exclude_ratio)
+                except Exception:
+                    continue
+                if s > best_score:
+                    best_score = s
+                    best_ts = ts
+        else:
+            # 无字幕：直接取最后一帧（累积态最完整），不跑 text_score 省时间
+            best_ts = group[-1][0]
             try:
-                s = text_score(bgr, exclude_bottom_ratio=exclude_ratio)
+                best_score = text_score(group[-1][1])
             except Exception:
-                continue
-            if s > best_score:
-                best_score = s
-                best_ts = ts
+                best_score = 0.0
         if best_score > MIN_TEXT_AREA:
             candidates.append((best_ts, best_score))
+        if (gi + 1) % 10 == 0:
+            _log.info(f"[FRAMES] ... processed {gi+1}/{len(groups)} groups")
 
     _log.info(f"[FRAMES] {len(groups)} scene groups ({subtitle_groups} with subtitle), {len(candidates)} keyframe candidates")
 

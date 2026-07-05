@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, FileText, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, FileText, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useListSessions,
@@ -18,6 +18,7 @@ import {
   useRenameSession,
   useGetSettings,
   useGetEphemeral,
+  useExportObsidianMd,
   useUpdateSettings,
   getGetEvidenceBlocksQueryKey,
   getGetSummaryResultQueryKey,
@@ -357,6 +358,7 @@ export default function Workstation() {
       onError: () => setGenerateError("生成失败，请检查 API 设置"),
     },
   });
+  const exportMdMut = useExportObsidianMd();
 
   const activeSession = realSessions.find(s => s.id === activeSessionId);
   const displaySummary = summary ?? (isMock ? MOCK_SUMMARY : null);
@@ -853,11 +855,29 @@ export default function Workstation() {
 
             {displaySummary && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px] space-y-3">
-                {displaySummary.citation_valid && (
-                  <div className="inline-flex items-center gap-1.5 text-xs text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
-                    <CheckCircle className="w-3.5 h-3.5 shrink-0" /> 引用校验通过
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {displaySummary.citation_valid && (
+                    <div className="inline-flex items-center gap-1.5 text-xs text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
+                      <CheckCircle className="w-3.5 h-3.5 shrink-0" /> 引用校验通过
+                    </div>
+                  )}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const result = await exportMdMut.mutateAsync({ sessionId: activeSessionId });
+                        await navigator.clipboard.writeText(result.markdown);
+                        alert(`已复制到剪贴板\n保存为 ${result.filename}`);
+                      } catch (e: any) {
+                        alert(`导出失败：${e?.message || '未知错误'}`);
+                      }
+                    }}
+                    disabled={exportMdMut.isPending}
+                    className="inline-flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                  >
+                    {exportMdMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                    复制 MD
+                  </button>
+                </div>
 
                 <motion.div
                   animate={justGenerated ? { scale: [1, 1.03, 1] } : {}}
