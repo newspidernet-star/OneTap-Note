@@ -233,6 +233,18 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # 防重复：如果同一 URL 已经在这个会话里下载过，跳过
+    from app.services.downloader import _extract_url
+    clean_url = _extract_url(url)
+    existing = db.query(Material).filter_by(session_id=session_id, original_url=clean_url).first()
+    if existing:
+        logger.info(f"[DL] session {session_id}: URL already downloaded (material {existing.id}), skipping")
+        return {"materials": [MaterialOut(
+            id=existing.id, type=existing.type, source=existing.source,
+            status=existing.status, sort_order=existing.sort_order,
+            url=_storage_url(existing.file_path),
+        )]}
+
     cookie_path = get_secret(db, "ytdlp_cookie_path")
 
     try:

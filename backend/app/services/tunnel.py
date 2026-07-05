@@ -30,13 +30,14 @@ def _read_url(stream, out: dict) -> None:
 def _wait_until_reachable(url: str, timeout: float = 15.0) -> None:
     """隧道 URL 出现在 cloudflared 输出里 ≠ Cloudflare 边缘已传播路由。
     自己 HTTP 探测直到能访问，避免 ASR 立刻去拉导致 FILE_DOWNLOAD_FAILED。
+    绕过代理：探测的是 Cloudflare 公网 URL，走代理可能 SSL 出错。
     """
     import httpx
     deadline = time.time() + timeout
     last_err = None
     while time.time() < deadline:
         try:
-            r = httpx.get(f"{url}/api/health", timeout=5, follow_redirects=True)
+            r = httpx.get(f"{url}/api/health", timeout=5, follow_redirects=True, proxy=None)
             if r.status_code == 200:
                 logger.info("tunnel readiness check passed: %s", url)
                 return
