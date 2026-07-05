@@ -147,13 +147,14 @@ export default function Workstation() {
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const appendFileInputRef = useRef<HTMLInputElement>(null);
   const transcribeTriggered = useRef<string>("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
   const [creatingSession, setCreatingSession] = useState(false);
-  const [appendMode, setAppendMode] = useState(false);
+  const [appendPanelOpen, setAppendPanelOpen] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -252,7 +253,7 @@ export default function Workstation() {
     if (uploadRunning) {
       setUploadRunning(false);
     }
-    setAppendMode(false);
+    setAppendPanelOpen(false);
   }, [activeSessionId, uploadErrorSessionId, processingSessionId, realSessions]);
 
   // 切换会话后清空链接输入框和生成错误，避免旧状态串到新会话
@@ -410,13 +411,13 @@ export default function Workstation() {
     );
   };
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = async (files: FileList | null, appendToCurrent = false) => {
     if (!files || files.length === 0) return;
     const arr = Array.from(files);
     const baseName = arr[0]?.name.replace(/\.[^.]+$/, "") || "Untitled";
     const uploadedHasAudioVideo = arr.some(f => isAudioVideoName(f.name));
     let sessionId = activeSessionId;
-    const wasAppending = appendMode && activeSession?.status === "done";
+    const wasAppending = appendToCurrent && activeSession?.status === "done";
     setUploadRunning(true);
     setUploadError(null);
     setUploadErrorSessionId(sessionId);
@@ -451,9 +452,10 @@ export default function Workstation() {
       invalidateAll(sessionId);
     } finally {
       setUploadRunning(false);
-      setAppendMode(false);
+      if (appendToCurrent) setAppendPanelOpen(false);
       setProcessingSessionId(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (appendFileInputRef.current) appendFileInputRef.current.value = "";
     }
   };
 
@@ -506,11 +508,11 @@ export default function Workstation() {
     }
   };
 
-  const handleAddLink = async () => {
+  const handleAddLink = async (appendToCurrent = false) => {
     const url = linkInput.trim();
     if (!url) return;
     let sessionId = activeSessionId;
-    const wasAppending = appendMode && activeSession?.status === "done";
+    const wasAppending = appendToCurrent && activeSession?.status === "done";
     setUploadRunning(true);
     setUploadError(null);
     setUploadErrorSessionId(sessionId);
@@ -547,7 +549,7 @@ export default function Workstation() {
       invalidateAll(sessionId);
     } finally {
       setUploadRunning(false);
-      setAppendMode(false);
+      if (appendToCurrent) setAppendPanelOpen(false);
       setProcessingSessionId(null);
     }
   };
@@ -560,7 +562,7 @@ export default function Workstation() {
     ? "error"
     : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending
       ? "uploading"
-      : (activeSession?.status === 'done' || activeSession?.status === 'processing') && !appendMode
+      : (activeSession?.status === 'done' || activeSession?.status === 'processing')
         ? "done"
         : "idle";
 
@@ -711,15 +713,6 @@ export default function Workstation() {
                       }
                     }}
                   />
-                  {activeSession?.status === "done" && !appendMode && (
-                    <button
-                      onClick={() => setAppendMode(true)}
-                      className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      追加素材
-                    </button>
-                  )}
                 </motion.div>
               ) : (
                 <motion.div
@@ -759,7 +752,7 @@ export default function Workstation() {
                       <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-focus-within:text-primary transition-colors" />
                       <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} disabled={uploadRunning || downloadLinkMut.isPending} onKeyDown={e => { if (e.key === 'Enter' && !uploadRunning) handleAddLink(); }} placeholder={uploadRunning || downloadLinkMut.isPending ? "处理中，请稍候..." : "粘贴视频或音频链接..."} className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60 disabled:opacity-50" />
                     </motion.div>
-                    <button onClick={handleAddLink} disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
+                    <button onClick={() => handleAddLink()} disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
                       {uploadRunning || downloadLinkMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : "添加链接"}
                     </button>
                   </div>
@@ -858,11 +851,83 @@ export default function Workstation() {
         </aside>
 
         <main key={activeSessionId || "empty"} className="flex-1 flex flex-col bg-card max-md:min-h-0 max-md:flex-none">
-          <div className="px-5 pt-4 pb-2 flex items-center sticky top-0 bg-card z-10">
+          <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 sticky top-0 bg-card z-10">
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-5 h-5 text-primary" />
               <span className="font-semibold text-base">AI 总结</span>
             </div>
+            {activeSession?.status === "done" && !isMock && (
+              <div className="relative">
+                <input
+                  ref={appendFileInputRef}
+                  type="file"
+                  multiple
+                  accept="video/*,audio/*,image/*"
+                  className="hidden"
+                  onChange={(e) => handleFiles(e.target.files, true)}
+                />
+                <button
+                  onClick={() => setAppendPanelOpen((v) => !v)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  补充资料
+                </button>
+                <AnimatePresence>
+                  {appendPanelOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      className="absolute right-0 top-10 z-30 w-[340px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-3 shadow-xl max-md:fixed max-md:left-4 max-md:right-4 max-md:top-16 max-md:w-auto"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">补充到当前会话</div>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            新素材会进入时间线；总结需要重新生成后才会纳入新内容。
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setAppendPanelOpen(false)}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          aria-label="关闭补充资料"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => appendFileInputRef.current?.click()}
+                        disabled={uploadRunning}
+                        className="mb-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                      >
+                        {uploadRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                        上传本地素材
+                      </button>
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
+                        <LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={linkInput}
+                          onChange={(e) => setLinkInput(e.target.value)}
+                          disabled={uploadRunning || downloadLinkMut.isPending}
+                          onKeyDown={(e) => { if (e.key === "Enter" && linkInput.trim()) handleAddLink(true); }}
+                          placeholder="粘贴要补充的视频或音频链接"
+                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
+                        />
+                        <button
+                          onClick={() => handleAddLink(true)}
+                          disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()}
+                          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-40"
+                        >
+                          添加
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4 flex flex-col items-center max-md:overflow-visible">
             <div id="island-btn">
@@ -887,79 +952,6 @@ export default function Workstation() {
               }}
             />
             </div>
-
-            {activeSession?.status === "done" && !isMock && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-[520px] rounded-xl border border-border/50 bg-muted/20 p-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <Plus className="h-4 w-4 text-primary" />
-                      补充资料
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      给当前会话继续添加视频、音频或图片。新证据会并入时间线，旧总结会失效，需要重新生成。
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setAppendMode((v) => !v)}
-                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                  >
-                    {appendMode ? "收起" : "添加"}
-                  </button>
-                </div>
-
-                <AnimatePresence initial={false}>
-                  {appendMode && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploadRunning}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-                        >
-                          {uploadRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-                          上传本地素材
-                        </button>
-                        <button
-                          onClick={() => setAppendMode(false)}
-                          className="inline-flex min-h-10 items-center justify-center rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                        >
-                          取消
-                        </button>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background/50 px-3 py-2">
-                        <LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <input
-                          type="text"
-                          value={linkInput}
-                          onChange={(e) => setLinkInput(e.target.value)}
-                          disabled={uploadRunning || downloadLinkMut.isPending}
-                          onKeyDown={(e) => { if (e.key === "Enter" && linkInput.trim()) handleAddLink(); }}
-                          placeholder="粘贴要补充的视频或音频链接"
-                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
-                        />
-                        <button
-                          onClick={handleAddLink}
-                          disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()}
-                          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-40"
-                        >
-                          添加链接
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
 
             {displaySummary && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[520px] space-y-3">
