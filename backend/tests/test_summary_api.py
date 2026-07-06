@@ -16,7 +16,7 @@ async def test_match_and_generate_and_result(client, monkeypatch):
     def fake_clear(sid, db):
         pass
 
-    def fake_generate(sid, db):
+    def fake_generate(sid, db, priority_material_ids=None):
         return result
 
     def fake_verify(r, sid, db):
@@ -67,7 +67,7 @@ async def test_verify_endpoint(client, monkeypatch):
     def fake_clear(sid, db):
         pass
 
-    def fake_generate(sid, db):
+    def fake_generate(sid, db, priority_material_ids=None):
         return {"corrected_text": "", "summary": "", "key_points": [], "corrections": []}
 
     def fake_verify(r, sid, db):
@@ -139,7 +139,7 @@ async def test_generate_updates_title_on_first_summary_only(client, monkeypatch)
     def fake_clear(sid, db):
         pass
 
-    def fake_generate(sid, db):
+    def fake_generate(sid, db, priority_material_ids=None):
         return result
 
     def fake_verify(r, sid, db):

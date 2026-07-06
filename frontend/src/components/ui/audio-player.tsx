@@ -46,7 +46,7 @@ type AudioPlayerProps = {
   hasNext?: boolean;
   sessionId?: string;
   materialId?: number;
-  onFrameCaptured?: () => void;
+  onFrameCaptured?: (data?: any) => void;
 };
 
 const formatTime = (seconds: number = 0) => {
@@ -256,13 +256,13 @@ const AudioPlayer = ({
           const skip = data?.skipped?.length ?? 0;
           if (ok > 0) {
             toast.success(`已抓取 ${ok} 帧`, {
-              description: skip > 0 ? `${skip} 帧抽帧失败已跳过` : "已加入时间线，可重新生成 AI 总结",
+              description: skip > 0 ? `${skip} 帧抽帧失败已跳过` : "已加入时间线，并将自动纳入 AI 总结",
             });
           } else {
             toast.error("抓帧失败", { description: "所有帧抽帧均失败" });
           }
           setPickedFrames([]);
-          onFrameCaptured?.();
+          onFrameCaptured?.(data);
         },
         onError: (e: any) => {
           toast.error("批量抓帧失败", { description: String(e?.message ?? e) });

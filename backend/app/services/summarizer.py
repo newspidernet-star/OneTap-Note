@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 import httpx
 from sqlalchemy.orm import Session
@@ -41,16 +42,71 @@ SYSTEM_PROMPT = """你是一个课堂/会议记录助手。请严格按 JSON 格
 }"""
 
 
-def build_prompt(blocks: list[EvidenceBlock], matches: list[Match]) -> str:
+def _block_is_priority(block: EvidenceBlock, priority_material_ids: set[int]) -> bool:
+    return bool(block.is_manual) or (block.material_id is not None and block.material_id in priority_material_ids)
+
+
+def _block_prefix(block: EvidenceBlock, priority_material_ids: set[int]) -> str:
+    return " [用户重点追加]" if _block_is_priority(block, priority_material_ids) else ""
+
+
+def _extract_links_from_text(text: str) -> list[str]:
+    patterns = [
+        r"https?://[^\s<>()\]\"'，。；、]+",
+        r"www\.[^\s<>()\]\"'，。；、]+",
+        r"github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
+        r"[A-Za-z0-9][A-Za-z0-9.-]+\.(?:com|io|ai|dev|app|org|net|cn)/[^\s<>()\]\"'，。；、]+",
+    ]
+    links: list[str] = []
+    for pattern in patterns:
+        links.extend(re.findall(pattern, text or "", flags=re.IGNORECASE))
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for link in links:
+        link = link.rstrip(".,;:!?)]}，。；：！？）】》")
+        if link.startswith("www.") or link.lower().startswith("github.com/"):
+            link = f"https://{link}"
+        key = link.lower()
+        if link and key not in seen:
+            seen.add(key)
+            cleaned.append(link)
+    return cleaned
+
+
+def _append_extracted_links(result: dict, blocks: list[EvidenceBlock]) -> None:
+    links: list[str] = []
+    seen: set[str] = set()
+    for block in blocks:
+        for link in _extract_links_from_text(block.text or ""):
+            key = link.lower()
+            if key not in seen:
+                seen.add(key)
+                links.append(link)
+    if not links:
+        return
+    summary = (result.get("summary") or "").rstrip()
+    if "来源链接" in summary:
+        return
+    section = "\n\n来源链接：\n" + "\n".join(f"- {link}" for link in links[:12])
+    result["summary"] = f"{summary}{section}" if summary else section.strip()
+
+
+def build_prompt(blocks: list[EvidenceBlock], matches: list[Match], priority_material_ids: set[int] | None = None) -> str:
+    priority_material_ids = priority_material_ids or set()
     # OCR 放在前（权威，AI 先看到的版本），ASR 放后（可能有同音字错误）
     lines = ["## 画面 OCR 原文（权威，术语/名词以此为准）\n"]
     for b in blocks:
         if b.type in _MATERIAL_TYPES:
-            lines.append(f"[{b.block_id}] [{b.timestamp:.0f}s] {b.text}")
+            lines.append(f"[{b.block_id}]{_block_prefix(b, priority_material_ids)} [{b.timestamp:.0f}s] {b.text}")
     lines.append("\n## 语音转写原文（可能同音字错误，请依据上述 OCR 纠错）\n")
     for b in blocks:
         if b.type == "speech":
-            lines.append(f"[{b.block_id}] [{b.speaker} {b.timestamp:.0f}s] {b.text}")
+            lines.append(f"[{b.block_id}]{_block_prefix(b, priority_material_ids)} [{b.speaker} {b.timestamp:.0f}s] {b.text}")
+    priority_blocks = [b for b in blocks if _block_is_priority(b, priority_material_ids)]
+    if priority_blocks:
+        lines.append("\n## 用户重点追加素材（必须吸收，不要被旧内容淹没）\n")
+        for b in priority_blocks:
+            lines.append(f"[{b.block_id}] [{b.type} {b.timestamp:.0f}s] {b.text}")
     lines.append("\n## S×P 匹配关联\n")
     block_map = {b.id: b.block_id for b in blocks}
     for m in matches:
@@ -62,6 +118,8 @@ def build_prompt(blocks: list[EvidenceBlock], matches: list[Match]) -> str:
     lines.append("- If any P blocks contain meaningful text, include their concrete concepts, slide titles, labels, or selected-frame information in the summary and key points.")
     lines.append("- Do not write a speech-only summary when visual/OCR evidence exists. If visual evidence changes or supplements the speech, cite the P block and explain that content.")
     lines.append("- Prefer citations that mix S and P blocks when both support the same conclusion.")
+    lines.append("- Evidence marked 用户重点追加 is a deliberate user supplement. It must be reflected in the summary or key points with citations unless it is empty/noise.")
+    lines.append("- If source URLs, GitHub links, project links, or website links appear in OCR/ASR text, preserve them in a short 来源链接 section.")
     lines.append("\n请输出 JSON (不再额外解释):")
     return "\n".join(lines)
 
@@ -123,15 +181,16 @@ def call_deepseek(prompt: str, db: Session) -> dict:
     )
 
 
-def generate_summary(session_id: int, db: Session) -> dict:
+def generate_summary(session_id: int, db: Session, priority_material_ids: list[int] | None = None) -> dict:
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).all()
     if not blocks:
         raise ValueError("会话无证据块")
     matches = db.query(Match).filter(
         Match.speech_block_id.in_([b.id for b in blocks if b.type == "speech"])
     ).all()
-    prompt = build_prompt(blocks, matches)
+    prompt = build_prompt(blocks, matches, set(priority_material_ids or []))
     result = call_deepseek(prompt, db)
+    _append_extracted_links(result, blocks)
     # 如果 DeepSeek 返回空纠错文本（纯图片会话无语音可纠），用 OCR 原文兜底
     if not result.get("corrected_text", "").strip():
         ocr_parts = [f"[{b.block_id}] {b.text}" for b in blocks if b.type in _MATERIAL_TYPES]

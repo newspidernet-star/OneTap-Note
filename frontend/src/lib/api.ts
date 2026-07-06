@@ -289,12 +289,16 @@ export const useMatchEvidence = <TError = unknown, TContext = unknown>(
 
 export const useGenerateSummary = <TError = unknown, TContext = unknown>(
   options?: {
-    mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; priorityMaterialIds?: number[] }, TContext>;
   }
 ) => {
-  return useMutation<any, TError, { sessionId: string }, TContext>({
-    mutationFn: ({ sessionId }) =>
-      safeFetch<any>(`/api/summary/generate/${toIntId(sessionId)}`, { method: "POST" }),
+  return useMutation<any, TError, { sessionId: string; priorityMaterialIds?: number[] }, TContext>({
+    mutationFn: ({ sessionId, priorityMaterialIds = [] }) =>
+      safeFetch<any>(`/api/summary/generate/${toIntId(sessionId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priority_material_ids: priorityMaterialIds }),
+      }),
     ...options?.mutation,
   });
 };

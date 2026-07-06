@@ -31,7 +31,7 @@ interface Props {
   hasNext?: boolean;
   sessionId?: string;
   materialId?: number;
-  onFrameCaptured?: () => void;
+  onFrameCaptured?: (data?: any) => void;
 }
 
 const stageIndex: Record<string, number> = {

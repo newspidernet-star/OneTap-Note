@@ -432,6 +432,23 @@ export default function Workstation() {
     );
   };
 
+  const runTranscribeAsync = async (sessionId: string) => {
+    transcribeTriggered.current = sessionId;
+    try {
+      await transcribeMut.mutateAsync({ sessionId });
+      setUploadError(null);
+      setUploadErrorSessionId(null);
+    } finally {
+      invalidateAll(sessionId);
+    }
+  };
+
+  const regenerateSummary = async (sessionId: string, priorityMaterialIds: number[] = []) => {
+    await matchMut.mutateAsync({ sessionId });
+    await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
+    invalidateAll(sessionId);
+  };
+
   const handleFiles = async (files: FileList | null, appendToCurrent = false) => {
     if (!files || files.length === 0) return;
     const arr = Array.from(files);
@@ -454,17 +471,22 @@ export default function Workstation() {
         setProcessingSessionId(sessionId);
       }
       const existingCount = (materials as any[]).length;
+      const uploadedMaterialIds: number[] = [];
       for (let i = 0; i < arr.length; i++) {
-        await uploadMut.mutateAsync({ sessionId: sessionId!, file: arr[i], sortOrder: existingCount + i });
+        const uploaded = await uploadMut.mutateAsync({ sessionId: sessionId!, file: arr[i], sortOrder: existingCount + i });
+        if (uploaded?.material_id != null) uploadedMaterialIds.push(Number(uploaded.material_id));
       }
       const proc = await processMut.mutateAsync({ sessionId: sessionId! });
       invalidateAll(sessionId);
-      if (uploadedHasAudioVideo) {
+      if (uploadedHasAudioVideo && wasAppending) {
+        await runTranscribeAsync(sessionId!);
+      } else if (uploadedHasAudioVideo) {
         runTranscribe(sessionId!);
       }
       if (wasAppending) {
-        sonnerToast.success("素材已追加并处理完成", {
-          description: "新证据已加入时间线，请重新生成 AI 总结以纳入新内容",
+        await regenerateSummary(sessionId!, uploadedMaterialIds);
+        sonnerToast.success("补充资料已纳入总结", {
+          description: "已按用户重点补充重新生成 AI 总结",
         });
       }
       void proc;
@@ -565,12 +587,17 @@ export default function Workstation() {
       await processMut.mutateAsync({ sessionId: sessionId! });
       invalidateAll(sessionId);
       const downloadedMaterials = (downloaded?.materials ?? []) as any[];
-      if (downloadedMaterials.some(m => m.type === "audio" || m.type === "video")) {
+      const downloadedMaterialIds = downloadedMaterials.map(m => Number(m.id)).filter(Number.isFinite);
+      const downloadedHasAudioVideo = downloadedMaterials.some(m => m.type === "audio" || m.type === "video");
+      if (downloadedHasAudioVideo && wasAppending) {
+        await runTranscribeAsync(sessionId!);
+      } else if (downloadedHasAudioVideo) {
         runTranscribe(sessionId!);
       }
       if (wasAppending) {
-        sonnerToast.success("素材已追加并处理完成", {
-          description: "新证据已加入时间线，请重新生成 AI 总结以纳入新内容",
+        await regenerateSummary(sessionId!, downloadedMaterialIds);
+        sonnerToast.success("补充链接已纳入总结", {
+          description: "已按用户重点补充重新生成 AI 总结",
         });
       }
       setLinkInput("");
@@ -982,9 +1009,19 @@ export default function Workstation() {
               hasNext={hasNextMaterial}
               sessionId={activeSessionId}
               materialId={currentPreview?.id}
-              onFrameCaptured={() => {
-                refetchEvidence();
+              onFrameCaptured={async (data?: any) => {
+                await refetchEvidence();
                 invalidateAll(activeSessionId);
+                if (activeSessionId && displaySummary && !awaitingTranscription && !transcribeMut.isPending) {
+                  try {
+                    await regenerateSummary(activeSessionId, data?.blocks?.map((b: any) => Number(b.material_id)).filter(Number.isFinite) ?? []);
+                    sonnerToast.success("选帧补充已纳入总结", {
+                      description: "已按用户手动补充重新生成 AI 总结",
+                    });
+                  } catch (error: any) {
+                    setGenerateError(error?.message || "选帧补充后重新生成失败");
+                  }
+                }
               }}
             />
             </div>

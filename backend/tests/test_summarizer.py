@@ -156,3 +156,53 @@ def test_summary_cites_video_frame_and_image_blocks(db_session, monkeypatch):
     assert result["summary"] == "本课讲电磁感应。"
     assert any("V001" in kp.get("citations", []) for kp in result["key_points"])
     assert any("I001" in kp.get("citations", []) for kp in result["key_points"])
+
+
+def test_priority_materials_are_marked_in_prompt(db_session):
+    s = EvidenceBlock(
+        block_id="S001",
+        session_id=1,
+        material_id=7,
+        type="speech",
+        timestamp=10.0,
+        text="补充素材里的关键信息",
+    )
+    p = EvidenceBlock(
+        block_id="P001",
+        session_id=1,
+        material_id=7,
+        type="video_frame",
+        timestamp=12.0,
+        text="GitHub 项目地址 github.com/newspidernet-star/smart-scribe",
+    )
+    prompt = build_prompt([s, p], [], priority_material_ids={7})
+    assert "用户重点追加" in prompt
+    assert "必须吸收" in prompt
+    assert "P001" in prompt
+
+
+def test_generate_summary_appends_extracted_links(db_session, monkeypatch):
+    block = EvidenceBlock(
+        block_id="P001",
+        session_id=1,
+        material_id=1,
+        type="video_frame",
+        timestamp=1.0,
+        text="项目地址 github.com/newspidernet-star/smart-scribe",
+    )
+    db_session.add(block)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.summarizer.call_deepseek",
+        lambda prompt, db: {
+            "corrected_text": "",
+            "summary": "这是一个项目介绍。",
+            "key_points": [],
+            "corrections": [],
+        },
+    )
+
+    result = generate_summary(1, db_session)
+    assert "来源链接" in result["summary"]
+    assert "github.com/newspidernet-star/smart-scribe" in result["summary"]

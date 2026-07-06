@@ -1,6 +1,10 @@
 from pydantic import BaseModel
 
 
+class SummaryGenerateRequest(BaseModel):
+    priority_material_ids: list[int] = []
+
+
 class MatchResponse(BaseModel):
     pairs_count: int
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.models import EvidenceBlock, Material, Session as SessionModel, Summary
 from app.schemas.summary import (
-    KeyPointOut, MatchResponse, SummaryGenerateResponse, SummaryResultOut, VerificationOut,
+    KeyPointOut, MatchResponse, SummaryGenerateRequest, SummaryGenerateResponse, SummaryResultOut, VerificationOut,
 )
 from app.services.matcher import match_evidence
 from app.services.summarizer import (
@@ -83,7 +83,7 @@ def run_match(session_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/generate/{session_id}", response_model=SummaryGenerateResponse)
-def run_generate(session_id: int, db: Session = Depends(get_db)):
+def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db: Session = Depends(get_db)):
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -92,7 +92,7 @@ def run_generate(session_id: int, db: Session = Depends(get_db)):
         had_summary = db.query(Summary).filter_by(session_id=session_id).first() is not None
         clear_summary(session_id, db)
         t0 = time.time()
-        result = generate_summary(session_id, db)
+        result = generate_summary(session_id, db, priority_material_ids=(body.priority_material_ids if body else []))
         logger.info(f"[AI] session {session_id}: DeepSeek done, {time.time()-t0:.2f}s")
         t1 = time.time()
         verification = verify_citations(result, session_id, db)
