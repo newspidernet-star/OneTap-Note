@@ -1,6 +1,6 @@
 ﻿// Smart Scribe - Electron main process
 
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } = require("electron");
 const { spawn, exec } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -8,6 +8,7 @@ const http = require("node:http");
 
 let backendProcess = null;
 let mainWindow = null;
+let tray = null;
 let healthPollTimer = null;
 let isQuiting = false;
 let lastStartupStatus = null;
@@ -227,7 +228,50 @@ function createWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 
+  mainWindow.on("close", (event) => {
+    if (isQuiting) return;
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: "question",
+      title: "Smart Scribe",
+      message: "要关闭 Smart Scribe 吗？",
+      detail: "隐藏到系统托盘会保留后台服务，下次打开更快；直接退出会关闭本地后端。",
+      buttons: ["隐藏到系统托盘", "直接退出", "取消"],
+      defaultId: 0,
+      cancelId: 2,
+    });
+    if (choice === 0) {
+      createTray();
+      mainWindow.hide();
+    } else if (choice === 1) {
+      isQuiting = true;
+      app.quit();
+    }
+  });
+
   mainWindow.on("closed", () => { mainWindow = null; });
+}
+
+function createTrayIcon() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      <rect width="32" height="32" rx="8" fill="#1B2220"/>
+      <path d="M16 5l2.1 6.9L25 14l-6.9 2.1L16 23l-2.1-6.9L7 14l6.9-2.1L16 5z" fill="#E2EAE5"/>
+      <path d="M23 21l.9 2.9L27 25l-3.1.9L23 29l-.9-3.1L19 25l3.1-1.1L23 21z" fill="#91B8A7"/>
+    </svg>`;
+  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
+}
+
+function createTray() {
+  if (tray) return;
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("Smart Scribe");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "显示 Smart Scribe", click: () => showMainWindow() },
+    { type: "separator" },
+    { label: "退出", click: () => { isQuiting = true; app.quit(); } },
+  ]));
+  tray.on("click", () => showMainWindow());
 }
 
 function showMainWindow() {
