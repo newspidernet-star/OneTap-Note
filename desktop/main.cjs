@@ -23,6 +23,14 @@ const HEALTH_POLL_INTERVAL_MS = 1000;
 
 function getProjectRoot() {
   if (app.isPackaged) {
+    // Packaged exe lives at desktop/dist/win-unpacked/Smart Scribe.exe
+    // Project root is 3 levels up from the exe directory
+    const exeDir = path.dirname(app.getPath("exe"));
+    const localRoot = path.resolve(exeDir, "..", "..", "..");
+    if (fs.existsSync(path.join(localRoot, "backend", ".venv", "Scripts", "python.exe"))) {
+      return localRoot;
+    }
+    // Fallback: resources/app (for future full-bundle distribution)
     return path.join(process.resourcesPath, "app");
   }
   return path.resolve(__dirname, "..");

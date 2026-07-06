@@ -22,27 +22,8 @@
       "main.cjs",
       "preload.cjs"
     ],
-    "extraResources": [
-      {
-        "from": "../",
-        "to": "app",
-        "filter": [
-          "backend/**",
-          "frontend/**",
-          "scripts/**",
-          "start-windows.bat",
-          "README.md",
-          "!backend/.venv/**",
-          "!backend/storage/**",
-          "!frontend/node_modules/**",
-          "!frontend/dist/**",
-          "!**/__pycache__/**",
-          "!**/.pytest_cache/**"
-        ]
-      }
-    ],
     "win": {
-      "target": "nsis"
+      "target": "dir"
     }
   }
 }
