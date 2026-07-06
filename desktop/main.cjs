@@ -16,6 +16,7 @@ let lastStartupStatus = null;
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
+const MIN_SPLASH_MS = 900;
 
 // Use hex colors here. Windows titleBarOverlay may fall back to white with
 // some CSS color syntaxes, which makes the caption buttons look detached.
@@ -42,6 +43,10 @@ function sendStartupStatus(payload) {
   lastStartupStatus = payload;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send("startup-status", payload);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function setupStatusFromLine(line) {
@@ -195,7 +200,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
     title: "Smart Scribe",
-    show: true,
+    show: false,
     autoHideMenuBar: true,
     backgroundColor: THEME.dark.bg,
     titleBarStyle: "hidden",
@@ -210,7 +215,13 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
-  mainWindow.loadFile(path.join(__dirname, "loading.html"));
+  mainWindow.once("ready-to-show", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+  });
+  mainWindow.loadFile(path.join(__dirname, "loading.html")).catch((err) => {
+    console.error("[desktop] loading screen failed:", err);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+  });
 
   // Close = hide to tray (backend keeps running)
   mainWindow.on("close", (e) => {
@@ -271,6 +282,7 @@ ipcMain.handle("get-startup-status", () => lastStartupStatus);
 
 app.whenReady().then(async () => {
   const root = getProjectRoot();
+  const splashStartedAt = Date.now();
 
   createTray();
 
@@ -279,9 +291,15 @@ app.whenReady().then(async () => {
   console.log("[startup] backend already running:", alreadyRunning);
 
   createWindow();
+  sendStartupStatus({
+    mode: "launch",
+    title: alreadyRunning ? "正在打开工作台" : "正在启动服务",
+    detail: alreadyRunning ? "本地服务已在运行，正在进入应用" : "正在准备本地工作台，请稍等",
+  });
 
   if (alreadyRunning) {
     // Backend is alive — go straight to the app
+    await sleep(Math.max(0, MIN_SPLASH_MS - (Date.now() - splashStartedAt)));
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadURL(BACKEND_URL);
     }
@@ -299,6 +317,7 @@ app.whenReady().then(async () => {
       return;
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
+      await sleep(Math.max(0, MIN_SPLASH_MS - (Date.now() - splashStartedAt)));
       mainWindow.loadURL(BACKEND_URL);
     }
   }
