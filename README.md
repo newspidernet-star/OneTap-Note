@@ -134,6 +134,20 @@ SMART_SCRIBE_PADDLEOCR_CLOUD_KEY=xxx
 SMART_SCRIBE_DASHSCOPE_WORKSPACE_ID=ws-xxx
 ```
 
+如果不知道这些 Key 去哪里找，可以看下面几段演示：
+
+### DeepSeek API Key
+
+![DeepSeek API Key 获取演示](docs/get-deepseek-token.gif)
+
+### DashScope API Key
+
+![DashScope API Key 获取演示](docs/get-dashscope-token.gif)
+
+### PaddleOCR Cloud Key
+
+![PaddleOCR Cloud Key 获取演示](docs/get-paddleocr-token.gif)
+
 ## 项目边界
 
 我一开始也想过把它继续扩成会议录制、屏幕录制、实时上传之类的工具。但想了一圈之后，感觉那样会把项目做散。
