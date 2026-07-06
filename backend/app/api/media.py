@@ -62,6 +62,25 @@ def _clear_stale_summary_and_matches(session_id: int, db: Session) -> None:
         db.query(Match).delete(synchronize_session=False)
 
 
+def _has_pending_transcription(session_id: int, db: Session) -> bool:
+    speech_material_ids = {
+        row[0]
+        for row in db.query(EvidenceBlock.material_id).filter(
+            EvidenceBlock.session_id == session_id,
+            EvidenceBlock.type == "speech",
+            EvidenceBlock.material_id.isnot(None),
+        ).distinct()
+    }
+    materials = db.query(Material).filter(
+        Material.session_id == session_id,
+        Material.type.in_(["audio", "video"]),
+    ).all()
+    return any(
+        m.status != "no_speech" and m.id not in speech_material_ids
+        for m in materials
+    )
+
+
 @router.get("/api/sessions", response_model=list[SessionOut])
 def list_sessions(client_id: str | None = None, db: Session = Depends(get_db)):
     q = db.query(SessionModel)
@@ -157,7 +176,7 @@ def process_materials(session_id: int, db: Session = Depends(get_db)):
         if result.evidence_block_ids or (current_block_ids - pre_block_ids):
             _clear_stale_summary_and_matches(session_id, db)
         logger.info(f"[session {session_id}] process 总耗时 {time.time()-t0:.2f}s")
-        session.status = "done"
+        session.status = "processing" if _has_pending_transcription(session_id, db) else "done"
         session.error_message = None
         session.updated_at = datetime.now(timezone.utc).isoformat()
         db.commit()

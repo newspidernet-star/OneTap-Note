@@ -361,7 +361,9 @@ export default function Workstation() {
         setJustGenerated(true);
         setTimeout(() => setJustGenerated(false), 600);
       },
-      onError: () => setGenerateError("生成失败，请检查 API 设置"),
+      onError: (error: any) => setGenerateError(error?.message?.includes("语音转写")
+        ? "语音转写还没有完成，请稍后再生成总结"
+        : "生成失败，请检查 API 设置"),
     },
   });
   const exportMdMut = useExportObsidianMd();
@@ -384,6 +386,23 @@ export default function Workstation() {
   const previewVideo = useMemo(() => previewMaterials.find(m => m.type === "video"), [previewMaterials]);
   const previewAudio = useMemo(() => previewMaterials.find(m => m.type === "audio"), [previewMaterials]);
   const previewImages = useMemo(() => previewMaterials.filter(m => m.type === "image"), [previewMaterials]);
+  const awaitingTranscription = useMemo(() => {
+    const audioVideoMaterials = (materials as any[]).filter(m => m.type === "audio" || m.type === "video");
+    if (audioVideoMaterials.length === 0) return false;
+    const speechBlocks = displayEvidence.filter((block: any) => block.type === "speech");
+    const speechMaterialIds = new Set(
+      speechBlocks
+        .map((block: any) => block.material_id)
+        .filter((id: any) => id != null)
+    );
+    const hasLegacySpeech = speechBlocks.some((block: any) => block.material_id == null);
+    return audioVideoMaterials.some((material: any) => {
+      if (material.status === "no_speech") return false;
+      if (speechMaterialIds.has(material.id)) return false;
+      if (hasLegacySpeech && audioVideoMaterials.length === 1) return false;
+      return true;
+    });
+  }, [materials, displayEvidence]);
 
   const hasPrevMaterial = mediaIndex > 0;
   const hasNextMaterial = mediaIndex < previewMaterials.length - 1;
@@ -500,13 +519,22 @@ export default function Workstation() {
       });
       return;
     }
+    if (awaitingTranscription || transcribeMut.isPending) {
+      toast({
+        title: "语音还在转写",
+        description: "等音频/视频转写完成后再生成总结，这样总结会同时包含画面和语音内容。",
+      });
+      return;
+    }
     if (matchMut.isPending || generateMutation.isPending) return;
     setGenerateError(null);
     try {
       await matchMut.mutateAsync({ sessionId: activeSessionId });
       generateMutation.mutate({ sessionId: activeSessionId });
-    } catch {
-      setGenerateError("匹配失败，请检查证据块");
+    } catch (error: any) {
+      setGenerateError(error?.message?.includes("语音转写")
+        ? "语音转写还没有完成，请稍后再生成总结"
+        : "匹配失败，请检查证据块");
     }
   };
 
@@ -562,9 +590,9 @@ export default function Workstation() {
 
   const uploadStatus: UploadStatus = pipelineError && !matchMut.isPending && !generateMutation.isPending
     ? "error"
-    : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending
+    : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending || activeSession?.status === 'processing'
       ? "uploading"
-      : (activeSession?.status === 'done' || activeSession?.status === 'processing')
+      : activeSession?.status === 'done'
         ? "done"
         : "idle";
 
@@ -574,11 +602,13 @@ export default function Workstation() {
       ? "matching"
       : generateMutation.isPending
         ? "summarizing"
-        : displaySummary
-          ? "done"
-          : "idle";
+        : awaitingTranscription || transcribeMut.isPending
+          ? "transcribing"
+          : displaySummary
+            ? "done"
+            : "idle";
 
-  const canGenerate = !isMock && !matchMut.isPending && !generateMutation.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const canGenerate = !isMock && !matchMut.isPending && !generateMutation.isPending && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
   const settingsByKey = useMemo(
     () => new Map((settingsStatus as any[]).map(item => [item.key, item])),
     [settingsStatus]

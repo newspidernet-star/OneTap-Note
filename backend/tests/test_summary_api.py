@@ -111,6 +111,23 @@ async def test_verify_endpoint(client, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_generate_waits_for_video_transcription(client):
+    s = await client.post("/api/sessions", json={"title": "T"})
+    sid = s.json()["id"]
+
+    upload = await client.post(
+        "/api/media/upload",
+        data={"session_id": str(sid), "sort_order": "0"},
+        files={"file": ("clip.mp4", b"fake-video", "video/mp4")},
+    )
+    assert upload.status_code == 200
+
+    resp = await client.post(f"/api/summary/generate/{sid}")
+    assert resp.status_code == 409
+    assert "语音转写" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
 async def test_generate_updates_title_on_first_summary_only(client, monkeypatch):
     result = {
         "corrected_text": "纠错文本",

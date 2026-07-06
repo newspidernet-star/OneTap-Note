@@ -44,15 +44,33 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
 
     for material in candidates:
         try:
+            material.status = "transcribing"
+            db.commit()
             audio_path = prepare_audio(material)
             t0 = time.time()
             logger.info("[ASR] session %s: transcribe material %s, audio=%s", session_id, material.id, audio_path)
             await asyncio.to_thread(_run_transcribe, audio_path, session_id, material.id)
             logger.info("[OK] session %s: material %s done, %.2fs", session_id, material.id, time.time() - t0)
+            db2 = session_factory()
+            try:
+                mat = db2.query(Material).filter_by(id=material.id, session_id=session_id).first()
+                if mat:
+                    mat.status = "done"
+                    db2.commit()
+            finally:
+                db2.close()
         except Exception as e:
             msg = str(e)
             if "NO_WORDS" in msg or "ALGO_INVALID_PARAM_AUDIO_FORMAT" in msg or "NO_AUDIO_STREAM" in msg:
                 logger.info("[ASR] session %s: material %s has no speech, skipping", session_id, material.id)
+                db2 = session_factory()
+                try:
+                    mat = db2.query(Material).filter_by(id=material.id, session_id=session_id).first()
+                    if mat:
+                        mat.status = "no_speech"
+                        db2.commit()
+                finally:
+                    db2.close()
                 continue
             db2 = session_factory()
             try:

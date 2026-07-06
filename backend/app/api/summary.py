@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.models import EvidenceBlock, Session as SessionModel, Summary
+from app.models import EvidenceBlock, Material, Session as SessionModel, Summary
 from app.schemas.summary import (
     KeyPointOut, MatchResponse, SummaryGenerateResponse, SummaryResultOut, VerificationOut,
 )
@@ -21,11 +21,51 @@ logger = logging.getLogger("smart_scribe")
 router = APIRouter(prefix="/api/summary", tags=["summary"])
 
 
+def _pending_transcription_material_ids(session_id: int, db: Session) -> list[int]:
+    speech_material_ids = {
+        row[0]
+        for row in db.query(EvidenceBlock.material_id).filter(
+            EvidenceBlock.session_id == session_id,
+            EvidenceBlock.type == "speech",
+            EvidenceBlock.material_id.isnot(None),
+        ).distinct()
+    }
+    has_legacy_speech = db.query(EvidenceBlock.id).filter(
+        EvidenceBlock.session_id == session_id,
+        EvidenceBlock.type == "speech",
+        EvidenceBlock.material_id.is_(None),
+    ).first() is not None
+    materials = db.query(Material).filter(
+        Material.session_id == session_id,
+        Material.type.in_(["audio", "video"]),
+    ).order_by(Material.sort_order).all()
+    pending: list[int] = []
+    for material in materials:
+        if material.status == "no_speech":
+            continue
+        if material.id in speech_material_ids:
+            continue
+        if has_legacy_speech and len(materials) == 1:
+            continue
+        pending.append(material.id)
+    return pending
+
+
+def _ensure_transcription_ready(session_id: int, db: Session) -> None:
+    pending = _pending_transcription_material_ids(session_id, db)
+    if pending:
+        raise HTTPException(
+            status_code=409,
+            detail="语音转写还没有完成，请等音频/视频转写完成后再生成总结。",
+        )
+
+
 @router.post("/match/{session_id}", response_model=MatchResponse)
 def run_match(session_id: int, db: Session = Depends(get_db)):
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _ensure_transcription_ready(session_id, db)
     try:
         matches = match_evidence(session_id, db)
         session.error_message = None
@@ -47,6 +87,7 @@ def run_generate(session_id: int, db: Session = Depends(get_db)):
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _ensure_transcription_ready(session_id, db)
     try:
         had_summary = db.query(Summary).filter_by(session_id=session_id).first() is not None
         clear_summary(session_id, db)
