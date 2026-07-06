@@ -34,7 +34,12 @@ if (Test-Path $ExePath) {
 }
 
 # Full build (first time)
-Copy-Item (Join-Path $ElectronDist "*") $OutDir -Recurse -Force
+# Copy electron binary files, but skip LICENSE (keep our MIT one)
+$electronFiles = Get-ChildItem $ElectronDist -Force
+foreach ($file in $electronFiles) {
+    if ($file.Name -eq "LICENSE") { continue }
+    Copy-Item $file.FullName $OutDir -Recurse -Force
+}
 New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
