@@ -44,7 +44,6 @@ conversations/
 /locales/
 /*.dll
 /*.pak
-/LICENSE
 /icudtl.dat
 /resources.pak
 /snapshot_blob.bin
