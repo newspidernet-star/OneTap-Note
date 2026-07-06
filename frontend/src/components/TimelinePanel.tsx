@@ -86,7 +86,7 @@ export default function TimelinePanel({
           ))}
           {blocks.some(isSource) && (
             <span className="h-6 px-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card text-muted-foreground text-[11px] font-medium whitespace-nowrap">
-              <i className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <i className="w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-cyan-400" />
               资料
             </span>
           )}
@@ -97,7 +97,7 @@ export default function TimelinePanel({
       <div className="relative flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-6 sm:px-5 bg-card" style={{ maxHeight: 'calc(100dvh - 112px)' }}>
         <div className="relative">
           {/* Gradient timeline line */}
-          <div className="absolute left-[31px] sm:left-[35px] top-7 bottom-8 w-0.5 rounded-full bg-gradient-to-b from-primary/20 via-slate-400/20 to-primary/20" />
+          <div className="absolute left-[31px] sm:left-[35px] top-7 bottom-8 w-0.5 rounded-full bg-gradient-to-b from-primary/20 via-slate-400/20 to-primary/20 dark:via-cyan-400/25" />
 
           <AnimatePresence>
           {blocks.map((block, i) => {
@@ -117,7 +117,7 @@ export default function TimelinePanel({
                   {/* Node */}
                   <div
                     className={`relative z-10 w-[32px] h-[32px] rounded-[11px] grid place-items-center mt-0.5 text-xs font-extrabold shadow-sm ${
-                      speech ? "bg-primary text-primary-foreground" : "bg-slate-500 text-white"
+                      speech ? "bg-primary text-primary-foreground" : "bg-slate-500 text-white dark:bg-cyan-500 dark:text-slate-950"
                     }`}
                   >
                     {nodeLabel(block)}
@@ -139,7 +139,7 @@ export default function TimelinePanel({
                     {/* Left accent */}
                     <div
                       className={`absolute inset-y-0 left-0 w-1 ${
-                        speech ? "bg-primary" : "bg-slate-500"
+                        speech ? "bg-primary" : "bg-slate-500 dark:bg-cyan-500"
                       }`}
                     />
 
@@ -150,7 +150,7 @@ export default function TimelinePanel({
                           className={`h-[22px] px-1.5 inline-flex items-center gap-1 rounded-md text-[10px] font-extrabold font-mono whitespace-nowrap ${
                             speech
                               ? "text-primary bg-primary/10"
-                              : "text-slate-600 bg-slate-500/10 dark:text-slate-300"
+                              : "text-slate-600 bg-slate-500/10 dark:bg-cyan-400/12 dark:text-cyan-200"
                           }`}
                         >
                           {speech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
