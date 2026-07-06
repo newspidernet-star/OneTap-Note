@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, ArrowUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useListSessions,
@@ -144,7 +144,9 @@ export default function Workstation() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const timelineRef = useRef<HTMLDivElement>(null);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
   const [timelineVisible, setTimelineVisible] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const appendFileInputRef = useRef<HTMLInputElement>(null);
@@ -850,7 +852,7 @@ export default function Workstation() {
           </div>
         </aside>
 
-        <main key={activeSessionId || "empty"} className="flex-1 flex flex-col bg-background max-md:min-h-0 max-md:flex-none">
+        <main key={activeSessionId || "empty"} className="relative flex-1 flex flex-col bg-background max-md:min-h-0 max-md:flex-none">
           <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border/50">
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-5 h-5 text-primary" />
@@ -929,7 +931,11 @@ export default function Workstation() {
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto px-5 pb-5 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible">
+          <div
+            ref={mainScrollRef}
+            onScroll={(e) => setShowBackToTop(e.currentTarget.scrollTop > 420)}
+            className="flex-1 overflow-y-auto px-5 pb-5 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible"
+          >
             <div id="island-btn">
             <IslandButton
               status={buttonStatus}
@@ -1019,18 +1025,6 @@ export default function Workstation() {
                   <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
                 </CollapsibleCard>
 
-                {displaySummary.unused_block_ids.length > 0 && (
-                  <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 overflow-hidden">
-                    <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      <TriangleAlert className="w-3.5 h-3.5 text-amber-500" /> 未被引用
-                    </div>
-                    <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-                      {displaySummary.unused_block_ids.map(id => (
-                        <span key={id} className="px-2.5 py-1 rounded-lg border border-border bg-background/50 text-xs font-mono text-muted-foreground">{id}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </motion.div>
             )}
             {displayEvidence.length > 0 && (
@@ -1057,6 +1051,20 @@ export default function Workstation() {
                     })}
                   </div>
                 </CollapsibleCard>
+              </motion.div>
+            )}
+            {displaySummary && displaySummary.unused_block_ids.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px]">
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 overflow-hidden">
+                  <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <TriangleAlert className="w-3.5 h-3.5 text-amber-500" /> 未被引用
+                  </div>
+                  <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                    {displaySummary.unused_block_ids.map(id => (
+                      <span key={id} className="px-2.5 py-1 rounded-lg border border-border bg-background/50 text-xs font-mono text-muted-foreground">{id}</span>
+                    ))}
+                  </div>
+                </div>
               </motion.div>
             )}
             {!displaySummary && !isMock && displayEvidence.length === 0 && (
@@ -1115,6 +1123,22 @@ export default function Workstation() {
               </CollapsibleCard>
             </div>
           </div>
+          <AnimatePresence>
+            {showBackToTop && (
+              <motion.button
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                onClick={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+                className="absolute bottom-5 right-5 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-card/95 text-foreground shadow-lg backdrop-blur transition-colors hover:bg-muted"
+                aria-label="回到顶部"
+                title="回到顶部"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </main>
 
         <div className="hidden md:block self-stretch flex flex-col min-h-0 bg-card">

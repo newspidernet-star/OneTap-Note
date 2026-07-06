@@ -57,6 +57,11 @@ def build_prompt(blocks: list[EvidenceBlock], matches: list[Match]) -> str:
         sid = block_map.get(m.speech_block_id, "?")
         pid = block_map.get(m.screen_block_id, "?")
         lines.append(f"- [{sid}] ↔ [{pid}] (相似度 {m.score:.2f})")
+    lines.append("\n## Summary requirements\n")
+    lines.append("- The final summary must synthesize BOTH visual evidence blocks (P/video frame/image OCR) and speech blocks (S/ASR).")
+    lines.append("- If any P blocks contain meaningful text, include their concrete concepts, slide titles, labels, or selected-frame information in the summary and key points.")
+    lines.append("- Do not write a speech-only summary when visual/OCR evidence exists. If visual evidence changes or supplements the speech, cite the P block and explain that content.")
+    lines.append("- Prefer citations that mix S and P blocks when both support the same conclusion.")
     lines.append("\n请输出 JSON (不再额外解释):")
     return "\n".join(lines)
 
