@@ -193,16 +193,9 @@ def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
         lines.append(summary.summary_markdown)
         lines.append("")
 
-    # --- 纠错原文 ---
-    if summary.corrected_text:
-        lines.append("## 纠错原文")
-        lines.append("")
-        lines.append(summary.corrected_text)
-        lines.append("")
-
-    # --- 证据块时间线 ---
+    # --- 详细原文 ---
     if blocks:
-        lines.append("## 证据块时间线")
+        lines.append("## 详细原文")
         lines.append("")
         for b in blocks:
             ts_str = _fmt_ts(b.timestamp)

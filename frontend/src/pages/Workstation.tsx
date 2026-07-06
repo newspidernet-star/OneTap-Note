@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, FileText, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useListSessions,
@@ -1019,10 +1019,6 @@ export default function Workstation() {
                   <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
                 </CollapsibleCard>
 
-                <CollapsibleCard icon={FileText} title="纠错原文" defaultOpen={false}>
-                  <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[13px] leading-6 text-foreground/75">{displaySummary.corrected_text}</div>
-                </CollapsibleCard>
-
                 {displaySummary.unused_block_ids.length > 0 && (
                   <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 overflow-hidden">
                     <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1039,7 +1035,7 @@ export default function Workstation() {
             )}
             {displayEvidence.length > 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px]">
-                <CollapsibleCard icon={ScanLine} title={`完整原文 · ${displayEvidence.length} 块`} defaultOpen={!displaySummary}>
+                <CollapsibleCard icon={ScanLine} title={`详细原文 · ${displayEvidence.length} 块`} defaultOpen={!displaySummary}>
                   <div className="space-y-2">
                     {displayEvidence.map((block) => {
                       const isSpeech = block.type === "speech";
