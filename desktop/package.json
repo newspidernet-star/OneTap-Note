@@ -1,0 +1,48 @@
+{
+  "name": "smart-scribe-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.smartscribe.app",
+    "productName": "Smart Scribe",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "app",
+        "filter": [
+          "backend/**",
+          "frontend/**",
+          "scripts/**",
+          "start-windows.bat",
+          "README.md",
+          "!backend/.venv/**",
+          "!backend/storage/**",
+          "!frontend/node_modules/**",
+          "!frontend/dist/**",
+          "!**/__pycache__/**",
+          "!**/.pytest_cache/**"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
