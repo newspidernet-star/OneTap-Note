@@ -16,12 +16,11 @@ const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
 
-// Theme colors matching frontend --card CSS variable (header uses bg-card)
-// Dark:  --card: 160 10% 12%   --foreground: 150 18% 90%
-// Light: --card: 0 0% 98%      --foreground: 164 18% 13%
+// Use hex colors here. Windows titleBarOverlay may fall back to white with
+// some CSS color syntaxes, which makes the caption buttons look detached.
 const THEME = {
-  dark:  { bg: "hsl(160 10% 12%)", symbol: "hsl(150 18% 90%)" },
-  light: { bg: "hsl(0 0% 98%)",   symbol: "hsl(164 18% 13%)" },
+  dark:  { bg: "#1B2220", symbol: "#E2EAE5" },
+  light: { bg: "#FAFAFA", symbol: "#1B2724" },
 };
 
 const LOADING_HTML = `
@@ -170,7 +169,7 @@ function waitForHealth(timeoutMs) {
 function applyTitleBarTheme(isDark) {
   const t = isDark ? THEME.dark : THEME.light;
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setTitleBarOverlay({ color: t.bg, symbolColor: t.symbol });
+    mainWindow.setTitleBarOverlay({ color: t.bg, symbolColor: t.symbol, height: 48 });
   }
 }
 

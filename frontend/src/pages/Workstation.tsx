@@ -662,8 +662,8 @@ export default function Workstation() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
-      <header className={`safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative ${isDesktop ? 'pr-[140px]' : ''}`}>
-        <div className="flex items-center gap-4">
+      <header className={`safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative ${isDesktop ? 'desktop-titlebar pr-[176px]' : ''}`}>
+        <div className={`flex items-center gap-4 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-primary">
             <Sparkles className="w-5 h-5" />
             <span className="font-bold tracking-tight">Smart Scribe</span>
@@ -684,7 +684,7 @@ export default function Workstation() {
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center gap-3 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-xs max-md:hidden">
             {isProcessing ? <Loader2 className="w-3 h-3 animate-spin text-amber-500" /> :
               activeSession?.status === 'done' ? <span className="w-2 h-2 rounded-full bg-green-500" /> :
