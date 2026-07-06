@@ -934,7 +934,7 @@ export default function Workstation() {
           <div
             ref={mainScrollRef}
             onScroll={(e) => setShowBackToTop(e.currentTarget.scrollTop > 420)}
-            className="flex-1 overflow-y-auto px-5 pb-5 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible"
+            className="flex-1 overflow-y-auto px-5 pb-20 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible"
           >
             <div id="island-btn">
             <IslandButton
@@ -1131,11 +1131,12 @@ export default function Workstation() {
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                 transition={{ duration: 0.16, ease: "easeOut" }}
                 onClick={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-                className="absolute bottom-5 right-5 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-card/95 text-foreground shadow-lg backdrop-blur transition-colors hover:bg-muted"
+                className="absolute bottom-5 left-1/2 z-30 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-blue-600/20 bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 backdrop-blur transition-colors hover:bg-blue-700 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
                 aria-label="回到顶部"
                 title="回到顶部"
               >
                 <ArrowUp className="h-4 w-4" />
+                <span>回到顶部</span>
               </motion.button>
             )}
           </AnimatePresence>
