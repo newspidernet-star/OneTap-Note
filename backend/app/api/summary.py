@@ -126,10 +126,39 @@ def re_verify(session_id: int, db: Session = Depends(get_db)):
     return VerificationOut(citation_valid=v["valid"], invalid_citations=v["invalid_ids"], unused_block_ids=u)
 
 
-def _fmt_ts(seconds: float) -> str:
+def _fmt_ts(seconds: float | int | None) -> str:
+    if seconds is None:
+        return "00:00"
     m = int(seconds) // 60
     s = int(seconds) % 60
     return f"{m:02d}:{s:02d}"
+
+
+def _yaml_string(value: str) -> str:
+    escaped = (value or "").replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _compact_ids(ids: list[str]) -> str:
+    return " ".join(f"`{cid}`" for cid in ids if cid)
+
+
+def _clip(text: str, limit: int = 52) -> str:
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
+def _block_heading(block: EvidenceBlock) -> str:
+    ts_str = _fmt_ts(block.timestamp)
+    if block.type == "speech":
+        who = block.speaker or "说话人"
+        return f"{block.block_id} · {ts_str} · {who}"
+    if block.type in ("video_frame", "image"):
+        page = f"第 {block.page_number} 页" if block.page_number else "画面"
+        return f"{block.block_id} · {ts_str} · {page}"
+    return f"{block.block_id} · {ts_str}"
 
 
 @router.get("/export/{session_id}")
@@ -143,19 +172,23 @@ def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="总结结果不存在")
 
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
-    block_map = {b.block_id: b for b in blocks}
-
     title = session.title or "Untitled"
     created = session.created_at[:10] if session.created_at else ""
+    unused_ids = summary.unused_block_ids or []
+    key_points = summary.key_points or []
 
     lines: list[str] = []
     # --- Frontmatter ---
     lines.append("---")
-    lines.append(f"title: {title}")
+    lines.append(f"title: {_yaml_string(title)}")
     if created:
         lines.append(f"date: {created}")
+    lines.append("source: smart-scribe")
+    lines.append("status: 待整理")
+    lines.append(f"evidence_count: {len(blocks)}")
     lines.append("tags:")
     lines.append("  - smart-scribe")
+    lines.append("  - 待整理")
     lines.append("---")
     lines.append("")
 
@@ -164,56 +197,73 @@ def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
     lines.append("")
 
     # --- 元信息 callout ---
-    lines.append("> [!info] 会话信息")
-    lines.append(f"> 创建时间：{session.created_at or '未知'}")
-    lines.append(f"> 证据块数量：{len(blocks)}")
-    if summary.unused_block_ids:
-        lines.append(f"> 未被引用的证据块：{', '.join(summary.unused_block_ids)}")
+    lines.append("> [!info] 来源")
+    lines.append(f"> Smart Scribe 自动整理。创建时间：{session.created_at or '未知'}")
+    lines.append(f"> 证据块：{len(blocks)} 个；未被引用：{len(unused_ids)} 个。")
     lines.append("")
 
+    if summary.summary_markdown:
+        lines.append("## 核心洞见")
+        lines.append("")
+        lines.append(summary.summary_markdown.strip())
+        lines.append("")
+
     # --- 核心要点 ---
-    key_points = summary.key_points or []
     if key_points:
-        lines.append("## 核心要点")
+        lines.append("## 关键要点")
         lines.append("")
         for kp in key_points:
             point = kp.get("point", "")
             citations = kp.get("citations", [])
             if citations:
-                cite_links = " ".join(f"[[#{cid}|{cid}]]" for cid in citations)
-                lines.append(f"- {point} — {cite_links}")
+                lines.append(f"- {point}")
+                lines.append(f"  - 证据：{_compact_ids([str(cid) for cid in citations])}")
             else:
                 lines.append(f"- {point}")
         lines.append("")
 
-    # --- 摘要 ---
-    if summary.summary_markdown:
-        lines.append("## 摘要")
+    if key_points:
+        lines.append("## 复习线索")
         lines.append("")
-        lines.append(summary.summary_markdown)
+        for kp in key_points[:3]:
+            point = _clip(kp.get("point", ""))
+            if point:
+                lines.append(f"- 我能否用自己的话解释：{point}")
+        lines.append("- 哪些结论需要回到详细原文核对？")
+        lines.append("")
+
+    if unused_ids:
+        lines.append("## 质检提示")
+        lines.append("")
+        lines.append(f"- 有 {len(unused_ids)} 个证据块没有被 AI 摘要或要点引用，可能是噪声、重复内容，也可能是遗漏信息。")
+        lines.append("")
+        lines.append("<details>")
+        lines.append("<summary>查看未引用证据 ID</summary>")
+        lines.append("")
+        lines.append(_compact_ids(unused_ids))
+        lines.append("")
+        lines.append("</details>")
         lines.append("")
 
     # --- 详细原文 ---
     if blocks:
         lines.append("## 详细原文")
         lines.append("")
+        lines.append("<details>")
+        lines.append(f"<summary>展开原文证据（{len(blocks)} 块）</summary>")
+        lines.append("")
         for b in blocks:
-            ts_str = _fmt_ts(b.timestamp)
-            if b.type == "speech":
-                label = f"### {b.block_id} — {ts_str} — {b.speaker or '未知'}"
-            elif b.type in ("video_frame", "image"):
-                label = f"### {b.block_id} — {ts_str} — 第{b.page_number or '?'}页"
-            else:
-                label = f"### {b.block_id} — {ts_str}"
-            lines.append(label)
+            lines.append(f"### {_block_heading(b)}")
             lines.append("")
             if b.text:
-                lines.append(b.text)
+                lines.append(b.text.strip())
             if b.image_path:
                 img_name = b.image_path.replace("\\", "/").split("/")[-1]
-                lines.append(f"")
+                lines.append("")
                 lines.append(f"![[{img_name}]]")
             lines.append("")
+        lines.append("</details>")
+        lines.append("")
 
     md = "\n".join(lines)
     return {"markdown": md, "filename": f"{title}.md"}
