@@ -868,7 +868,7 @@ export default function Workstation() {
                 />
                 <button
                   onClick={() => setAppendPanelOpen((v) => !v)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-foreground px-3 text-xs font-semibold text-background shadow-sm transition-colors hover:bg-foreground/90"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-600/20 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   补充资料
@@ -972,7 +972,7 @@ export default function Workstation() {
                       }
                     }}
                     disabled={exportMdMut.isPending}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-background bg-foreground px-3 py-1.5 rounded-full border border-foreground/20 shadow-sm hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-600/10 px-3 py-1.5 rounded-full border border-blue-600/20 shadow-sm hover:bg-blue-600/15 transition-colors disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:border-primary/20 dark:hover:bg-primary/90"
                   >
                     {exportMdMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                     复制 MD
@@ -996,7 +996,7 @@ export default function Workstation() {
                             if (kp.citations.length > 0) handleCitationClick(kp.citations[0]);
                           }}
                         >
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-foreground text-background border border-foreground/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white border border-blue-700/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform dark:bg-primary dark:text-primary-foreground">
                             {idx + 1}
                           </span>
                           <div className="flex-1 min-w-0">

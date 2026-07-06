@@ -67,9 +67,7 @@ export default function IslandButton({
 
   return (
     <motion.div
-      layout
       className="w-full"
-      transition={{ type: "spring", stiffness: 380, damping: 32 }}
     >
       <AnimatePresence mode="wait">
         {showHeroCard && (
@@ -96,11 +94,10 @@ export default function IslandButton({
         {status === "done" && hasMedia && (
           <motion.div
             key="preview"
-            layout
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-full flex flex-col gap-2"
           >
             <div className="relative w-full rounded-3xl overflow-hidden bg-[#eaeaea] dark:bg-black">
@@ -154,7 +151,7 @@ export default function IslandButton({
               <button
                 onClick={onGenerate}
                 disabled={!generable}
-                className="group w-full rounded-xl border border-foreground/15 bg-foreground text-background shadow-sm hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2 py-3.5 px-4 text-base font-semibold disabled:opacity-45"
+                className="group w-full rounded-xl border border-blue-600/20 bg-blue-600 text-white shadow-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 py-3.5 px-4 text-base font-semibold disabled:opacity-45 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
               >
                 <span>{status === "done" && !hasMedia ? "重新生成" : "生成 AI 总结"}</span>
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />

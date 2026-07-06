@@ -311,19 +311,16 @@ const AudioPlayer = ({
       <motion.div
         className={cn(
           "relative flex w-full flex-col overflow-hidden rounded-3xl bg-[#eaeaea] dark:bg-[#11111198] p-3 shadow-[0_0_20px_rgba(0,0,0,0.2)] backdrop-blur-sm",
-          orientation === "portrait" ? "max-w-[520px]" : "max-w-[624px]",
+          "max-w-[624px]",
           className
         )}
-        initial={{ opacity: 0, filter: "blur(10px)" }}
-        animate={{ opacity: 1, filter: "blur(0px)" }}
-        exit={{ opacity: 0, filter: "blur(10px)" }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 6 }}
         transition={{
-          duration: 0.3,
-          ease: "easeInOut",
-          delay: 0.1,
-          type: "spring",
+          duration: 0.18,
+          ease: "easeOut",
         }}
-        layout
       >
         {mediaType === "audio" && (
           <audio
@@ -343,9 +340,8 @@ const AudioPlayer = ({
 
         <motion.div
           className="flex flex-col"
-          layout
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
         >
           <motion.div className="relative h-[300px] max-md:h-[200px] w-full overflow-hidden rounded-[16px] bg-[#eaeaea] dark:bg-white/20">
             {(onPrev || onNext) && (
@@ -635,7 +631,7 @@ const AudioPlayer = ({
                             <button
                               onClick={(e) => { e.stopPropagation(); processPickedFrames(); }}
                               disabled={batchMut.isPending}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
                             >
                               {batchMut.isPending ? (
                                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 处理中…</>
