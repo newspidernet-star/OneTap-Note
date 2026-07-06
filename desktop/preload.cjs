@@ -8,4 +8,8 @@ contextBridge.exposeInMainWorld("smartScribe", {
   platform: process.platform,
   isDesktop: true,
   setTheme: (isDark) => ipcRenderer.send("set-theme", isDark),
+  onStartupStatus: (callback) => {
+    ipcRenderer.on("startup-status", (_event, payload) => callback(payload));
+  },
+  getStartupStatus: () => ipcRenderer.invoke("get-startup-status"),
 });

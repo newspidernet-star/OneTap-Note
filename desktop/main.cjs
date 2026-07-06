@@ -11,6 +11,7 @@ let mainWindow = null;
 let tray = null;
 let healthPollTimer = null;
 let isQuiting = false;
+let lastStartupStatus = null;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
@@ -23,45 +24,35 @@ const THEME = {
   light: { bg: "#FAFAFA", symbol: "#1B2724" },
 };
 
-const LOADING_HTML = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: hsl(160 10% 12%);
-    color: hsl(150 18% 90%);
-    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    height: 100vh; overflow: hidden;
-    -webkit-user-select: none; user-select: none;
+const SETUP_STEPS = [
+  { pattern: /Proxy detected|No proxy detected/i, title: "检测网络代理", progress: 8 },
+  { pattern: /Python|Python\.Python/i, title: "检查 Python 运行环境", progress: 18 },
+  { pattern: /NodeJS|Node\.js|OpenJS/i, title: "检查 Node.js", progress: 28 },
+  { pattern: /FFmpeg|ffmpeg/i, title: "检查 ffmpeg", progress: 38 },
+  { pattern: /cloudflared/i, title: "检查 cloudflared", progress: 48 },
+  { pattern: /Creating venv|backend\\\.venv/i, title: "创建后端虚拟环境", progress: 58 },
+  { pattern: /Installing backend deps|pip install/i, title: "安装后端依赖", progress: 68 },
+  { pattern: /Playwright/i, title: "安装浏览器内核", progress: 78 },
+  { pattern: /npm install/i, title: "安装前端依赖", progress: 86 },
+  { pattern: /Building frontend|npm run build/i, title: "构建前端页面", progress: 94 },
+  { pattern: /Setup Complete/i, title: "安装完成", progress: 100 },
+];
+
+function sendStartupStatus(payload) {
+  lastStartupStatus = payload;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("startup-status", payload);
+}
+
+function setupStatusFromLine(line) {
+  const text = line.trim();
+  if (!text) return null;
+  const step = SETUP_STEPS.find((item) => item.pattern.test(text));
+  if (step) {
+    return { mode: "install", title: step.title, detail: text, progress: step.progress };
   }
-  .logo {
-    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
-    margin-bottom: 32px; color: hsl(150 16% 86%);
-  }
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid hsl(158 10% 18%);
-    border-top-color: hsl(150 16% 86%);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 20px;
-  }
-  .text { font-size: 13px; color: hsl(150 18% 90% / 0.5); }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
-</head>
-<body>
-  <div class="logo">Smart Scribe</div>
-  <div class="spinner"></div>
-  <div class="text">正在启动服务...</div>
-</body>
-</html>
-`;
+  return { mode: "install", detail: text };
+}
 
 function getProjectRoot() {
   if (app.isPackaged) {
@@ -84,15 +75,35 @@ function isBackendInstalled(root) {
 function runSetupScript(root) {
   return new Promise((resolve, reject) => {
     const setupScript = path.join(root, "scripts", "setup-windows.ps1");
+    sendStartupStatus({
+      mode: "install",
+      title: "准备安装",
+      detail: "正在检查 Smart Scribe 运行环境",
+      progress: 3,
+    });
     const child = spawn(
       "powershell.exe",
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", setupScript],
       { cwd: root, stdio: ["ignore", "pipe", "pipe"], windowsHide: true }
     );
-    child.stdout.on("data", (data) => console.log("[setup] " + data.toString().trim()));
-    child.stderr.on("data", (data) => console.error("[setup:error] " + data.toString().trim()));
+    child.stdout.on("data", (data) => {
+      const text = data.toString().trim();
+      console.log("[setup] " + text);
+      for (const line of text.split(/\r?\n/)) {
+        const status = setupStatusFromLine(line);
+        if (status) sendStartupStatus(status);
+      }
+    });
+    child.stderr.on("data", (data) => {
+      const text = data.toString().trim();
+      console.error("[setup:error] " + text);
+      if (text) sendStartupStatus({ mode: "install", detail: text });
+    });
     child.on("close", (code) => {
-      if (code === 0) resolve();
+      if (code === 0) {
+        sendStartupStatus({ mode: "install", title: "安装完成", detail: "正在启动应用服务", progress: 100 });
+        resolve();
+      }
       else reject(new Error("Setup script exited with code " + code));
     });
     child.on("error", (err) => reject(err));
@@ -101,16 +112,12 @@ function runSetupScript(root) {
 
 async function ensureInstalled(root) {
   if (isBackendInstalled(root)) return;
-  const choice = dialog.showMessageBoxSync({
-    type: "info",
-    title: "Smart Scribe",
-    message: "首次启动需要安装依赖，可能需要几分钟。",
-    detail: "如果网络较慢，请确保代理 127.0.0.1:7897 可用，或稍后重试。",
-    buttons: ["开始安装", "退出"],
-    defaultId: 0,
-    cancelId: 1,
+  sendStartupStatus({
+    mode: "install",
+    title: "首次安装",
+    detail: "正在为 Smart Scribe 准备运行环境，可能需要几分钟",
+    progress: 0,
   });
-  if (choice === 1) { app.quit(); return; }
   try {
     await runSetupScript(root);
   } catch (err) {
@@ -121,6 +128,11 @@ async function ensureInstalled(root) {
 }
 
 function startBackend(root) {
+  sendStartupStatus({
+    mode: "launch",
+    title: "正在启动服务",
+    detail: "正在启动本地后端，请稍等",
+  });
   const startScript = path.join(root, "scripts", "start-windows.ps1");
   backendProcess = spawn(
     "powershell.exe",
@@ -132,7 +144,13 @@ function startBackend(root) {
       windowsHide: false,
     }
   );
-  backendProcess.stdout.on("data", (data) => console.log("[backend] " + data.toString().trim()));
+  backendProcess.stdout.on("data", (data) => {
+    const text = data.toString().trim();
+    console.log("[backend] " + text);
+    if (/Uvicorn running|Application startup complete/i.test(text)) {
+      sendStartupStatus({ mode: "launch", title: "服务已启动", detail: "正在打开工作台" });
+    }
+  });
   backendProcess.stderr.on("data", (data) => console.error("[backend:error] " + data.toString().trim()));
   backendProcess.on("close", (code) => {
     console.log("[backend] process exited with code " + code);
@@ -192,7 +210,7 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
-  mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(LOADING_HTML));
+  mainWindow.loadFile(path.join(__dirname, "loading.html"));
 
   // Close = hide to tray (backend keeps running)
   mainWindow.on("close", (e) => {
@@ -248,6 +266,8 @@ function killBackend() {
 ipcMain.on("set-theme", (_event, isDark) => {
   applyTitleBarTheme(isDark);
 });
+
+ipcMain.handle("get-startup-status", () => lastStartupStatus);
 
 app.whenReady().then(async () => {
   const root = getProjectRoot();

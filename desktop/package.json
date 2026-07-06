@@ -20,7 +20,8 @@
     },
     "files": [
       "main.cjs",
-      "preload.cjs"
+      "preload.cjs",
+      "loading.html"
     ],
     "win": {
       "target": "dir"

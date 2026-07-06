@@ -24,6 +24,7 @@ if (Test-Path $ExePath) {
     New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
     Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
     Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
+    Copy-Item (Join-Path $DesktopDir "loading.html") $AppDir -Force
     Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
     Write-Host ""
     Write-Host "  Update complete!" -ForegroundColor Green
@@ -36,6 +37,7 @@ Copy-Item $ElectronDist $OutDir -Recurse
 New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
+Copy-Item (Join-Path $DesktopDir "loading.html") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
 
 # Rename exe
