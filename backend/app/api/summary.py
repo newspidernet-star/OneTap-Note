@@ -217,81 +217,96 @@ def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
     created = session.created_at[:10] if session.created_at else ""
     unused_ids = summary.unused_block_ids or []
     key_points = summary.key_points or []
+    cited_ids = sorted({
+        str(cid)
+        for kp in key_points
+        for cid in kp.get("citations", [])
+        if cid
+    })
 
     lines: list[str] = []
-    # --- Frontmatter ---
     lines.append("---")
     lines.append(f"title: {_yaml_string(title)}")
     if created:
         lines.append(f"date: {created}")
     lines.append("source: smart-scribe")
-    lines.append("status: 待整理")
+    lines.append("status: inbox")
     lines.append(f"evidence_count: {len(blocks)}")
+    lines.append(f"cited_count: {len(cited_ids)}")
     lines.append("tags:")
     lines.append("  - smart-scribe")
-    lines.append("  - 待整理")
+    lines.append("  - video-note")
+    lines.append("  - inbox")
     lines.append("---")
     lines.append("")
 
-    # --- 标题 ---
     lines.append(f"# {title}")
     lines.append("")
 
-    # --- 元信息 callout ---
-    lines.append("> [!info] 来源")
-    lines.append(f"> Smart Scribe 自动整理。创建时间：{session.created_at or '未知'}")
-    lines.append(f"> 证据块：{len(blocks)} 个；未被引用：{len(unused_ids)} 个。")
+    lines.append("> [!info] Smart Scribe")
+    lines.append(f"> 创建时间：{session.created_at or '未知'}")
+    lines.append(f"> 证据块：{len(blocks)} 个；已引用：{len(cited_ids)} 个；未引用：{len(unused_ids)} 个。")
     lines.append("")
 
     if summary.summary_markdown:
-        lines.append("## 核心洞见")
+        lines.append("## 摘要")
         lines.append("")
         lines.append(summary.summary_markdown.strip())
         lines.append("")
 
-    # --- 核心要点 ---
     if key_points:
         lines.append("## 关键要点")
         lines.append("")
         for kp in key_points:
-            point = kp.get("point", "")
-            citations = kp.get("citations", [])
+            point = (kp.get("point") or "").strip()
+            citations = [str(cid) for cid in kp.get("citations", []) if cid]
+            if not point:
+                continue
             if citations:
-                lines.append(f"- {point}")
-                lines.append(f"  - 证据：{_compact_ids([str(cid) for cid in citations])}")
+                lines.append(f"- {point}  ")
+                lines.append(f"  证据：{_compact_ids(citations)}")
             else:
                 lines.append(f"- {point}")
         lines.append("")
 
-    if key_points:
+    if blocks:
+        lines.append("## 证据索引")
+        lines.append("")
+        lines.append("| ID | 类型 | 时间 | 摘要 |")
+        lines.append("| --- | --- | --- | --- |")
+        for b in blocks:
+            kind = "语音" if b.type == "speech" else "画面"
+            text = _clip(b.text, 48).replace("|", "\\|")
+            lines.append(f"| `{b.block_id}` | {kind} | {_fmt_ts(b.timestamp)} | {text} |")
+        lines.append("")
+
         lines.append("## 复习线索")
         lines.append("")
-        for kp in key_points[:3]:
-            point = _clip(kp.get("point", ""))
+        for kp in key_points[:5]:
+            point = _clip(kp.get("point", ""), 72)
             if point:
                 lines.append(f"- 我能否用自己的话解释：{point}")
-        lines.append("- 哪些结论需要回到详细原文核对？")
+        lines.append("- 哪些结论值得回到原视频或原文证据核对？")
         lines.append("")
 
     if unused_ids:
-        lines.append("## 质检提示")
+        lines.append("## 未引用证据")
         lines.append("")
-        lines.append(f"- 有 {len(unused_ids)} 个证据块没有被 AI 摘要或要点引用，可能是噪声、重复内容，也可能是遗漏信息。")
+        lines.append(f"有 {len(unused_ids)} 个证据块没有被摘要或要点引用，可能是噪声、重复内容，也可能是值得人工复核的遗漏信息。")
         lines.append("")
         lines.append("<details>")
-        lines.append("<summary>查看未引用证据 ID</summary>")
+        lines.append("<summary>展开未引用证据 ID</summary>")
         lines.append("")
         lines.append(_compact_ids(unused_ids))
         lines.append("")
         lines.append("</details>")
         lines.append("")
 
-    # --- 详细原文 ---
     if blocks:
         lines.append("## 详细原文")
         lines.append("")
         lines.append("<details>")
-        lines.append(f"<summary>展开原文证据（{len(blocks)} 块）</summary>")
+        lines.append(f"<summary>展开全部证据原文（{len(blocks)} 块）</summary>")
         lines.append("")
         for b in blocks:
             lines.append(f"### {_block_heading(b)}")
