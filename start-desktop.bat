@@ -1,6 +1,10 @@
 @echo off
 title Smart Scribe Desktop
 cd /d "%~dp0"
+if exist "Smart Scribe.exe" (
+    start "" "Smart Scribe.exe"
+    exit
+)
 if exist "desktop\dist\Smart-Scribe\Smart Scribe.exe" (
     start "" "desktop\dist\Smart-Scribe\Smart Scribe.exe"
     exit

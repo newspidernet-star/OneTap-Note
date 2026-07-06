@@ -68,6 +68,10 @@ function setupStatusFromLine(line) {
 function getProjectRoot() {
   if (app.isPackaged) {
     const exeDir = path.dirname(app.getPath("exe"));
+    if (fs.existsSync(path.join(exeDir, "backend", ".venv", "Scripts", "python.exe")) ||
+        fs.existsSync(path.join(exeDir, "scripts", "setup-windows.ps1"))) {
+      return exeDir;
+    }
     const localRoot = path.resolve(exeDir, "..", "..", "..");
     if (fs.existsSync(path.join(localRoot, "backend", ".venv", "Scripts", "python.exe"))) {
       return localRoot;

@@ -131,10 +131,24 @@ cd smart-scribe
 `start-desktop.bat` 会优先启动已经构建好的：
 
 ```text
-desktop/dist/Smart-Scribe/Smart Scribe.exe
+Smart Scribe.exe
 ```
 
 如果这个 exe 还不存在，它会进入 Electron 开发模式，并在第一次运行时安装桌面壳需要的依赖。
+
+发布 zip 时，推荐让用户解压后直接看到：
+
+```text
+Smart-Scribe-Windows/
+  Smart Scribe.exe
+  start-desktop.bat
+  start-windows.bat
+  backend/
+  frontend/
+  scripts/
+```
+
+也就是说，普通用户不需要进入 `desktop/dist/...` 这种深层目录。
 
 桌面版仍然复用同一套本地服务：
 

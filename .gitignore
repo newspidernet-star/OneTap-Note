@@ -35,6 +35,23 @@ backend/.env
 .DS_Store
 新会话.txt
 conversations/
+/release/
+
+# Local desktop release build
+/Smart Scribe.exe
+/electron.exe
+/resources/
+/locales/
+/*.dll
+/*.pak
+/LICENSE
+/icudtl.dat
+/resources.pak
+/snapshot_blob.bin
+/v8_context_snapshot.bin
+/vk_swiftshader_icd.json
+/LICENSES.chromium.html
+/version
 
 # Frontend build cache (legacy)
 frontend/.vite/

@@ -6,7 +6,7 @@ $DesktopDir = $PSScriptRoot
 $ProjectRoot = Split-Path $DesktopDir -Parent
 
 $ElectronDist = Join-Path $DesktopDir "node_modules\electron\dist"
-$OutDir = Join-Path $DesktopDir "dist\Smart-Scribe"
+$OutDir = $ProjectRoot
 
 if (-not (Test-Path $ElectronDist)) {
     Write-Host "Electron not installed. Run: cd desktop; npm install" -ForegroundColor Red
@@ -34,7 +34,7 @@ if (Test-Path $ExePath) {
 }
 
 # Full build (first time)
-Copy-Item $ElectronDist $OutDir -Recurse
+Copy-Item (Join-Path $ElectronDist "*") $OutDir -Recurse -Force
 New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
@@ -50,4 +50,4 @@ Write-Host ""
 Write-Host "  Build complete!" -ForegroundColor Green
 Write-Host "  Exe: $ExePath" -ForegroundColor Green
 Write-Host ""
-Write-Host "  You can create a desktop shortcut to this exe." -ForegroundColor DarkGray
+Write-Host "  Release zip can now expose this exe at the archive root." -ForegroundColor DarkGray
