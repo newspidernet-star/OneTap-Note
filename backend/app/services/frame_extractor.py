@@ -17,6 +17,72 @@ SUBTITLE_SIM_THRESHOLD = 0.85  # 底部相似度低于此值 → 判定该组底
 
 _log = logging.getLogger("smart_scribe")
 
+COVERAGE_KEYFRAMES = 60
+COVERAGE_BUCKET_SECONDS = 12.0
+COVERAGE_SCENE_GROUPS_PER_MINUTE = 12.0
+COVERAGE_MIN_GROUPS = 45
+
+
+def _choose_frame_strategy(groups_count: int, candidates_count: int, duration: float) -> tuple[str, int, float]:
+    minutes = max(duration / 60.0, 0.1)
+    groups_per_minute = groups_count / minutes
+    use_coverage = (
+        groups_count >= COVERAGE_MIN_GROUPS
+        or groups_per_minute >= COVERAGE_SCENE_GROUPS_PER_MINUTE
+        or candidates_count > MAX_KEYFRAMES * 1.5
+    )
+    return (
+        "coverage" if use_coverage else "conservative",
+        COVERAGE_KEYFRAMES if use_coverage else MAX_KEYFRAMES,
+        groups_per_minute,
+    )
+
+
+def _select_candidates(
+    candidates: list[tuple[float, float]],
+    cap: int,
+    strategy: str,
+    bucket_seconds: float = COVERAGE_BUCKET_SECONDS,
+) -> list[tuple[float, float]]:
+    if len(candidates) <= cap:
+        for ts, score in candidates:
+            _log.info("[FRAMES] keep candidate %.2fs score=%.4f reason=under-cap", ts, score)
+        return sorted(candidates, key=lambda x: x[0])
+
+    if strategy != "coverage":
+        selected = sorted(candidates, key=lambda x: x[1], reverse=True)[:cap]
+        selected_keys = {round(ts, 3) for ts, _ in selected}
+        for ts, score in candidates:
+            reason = "selected-top-score" if round(ts, 3) in selected_keys else "dropped-low-score"
+            _log.info("[FRAMES] candidate %.2fs score=%.4f reason=%s", ts, score, reason)
+        return sorted(selected, key=lambda x: x[0])
+
+    buckets: dict[int, tuple[float, float]] = {}
+    for ts, score in candidates:
+        bucket = int(ts // bucket_seconds)
+        prev = buckets.get(bucket)
+        if prev is None or score > prev[1]:
+            buckets[bucket] = (ts, score)
+
+    selected = list(buckets.values())
+    if len(selected) > cap:
+        selected = sorted(selected, key=lambda x: x[1], reverse=True)[:cap]
+    elif len(selected) < cap:
+        selected_keys = {round(ts, 3) for ts, _ in selected}
+        extras = [
+            item for item in sorted(candidates, key=lambda x: x[1], reverse=True)
+            if round(item[0], 3) not in selected_keys
+        ]
+        selected.extend(extras[: cap - len(selected)])
+
+    selected_keys = {round(ts, 3) for ts, _ in selected}
+    for ts, score in candidates:
+        bucket = int(ts // bucket_seconds)
+        reason = "selected-coverage" if round(ts, 3) in selected_keys else "dropped-coverage-cap"
+        _log.info("[FRAMES] candidate %.2fs score=%.4f bucket=%d reason=%s", ts, score, bucket, reason)
+
+    return sorted(selected, key=lambda x: x[0])
+
 
 def text_score(bgr: np.ndarray, exclude_bottom_ratio: float = 0.0) -> float:
     """计算画面文字密度。exclude_bottom_ratio > 0 时裁掉底部（字幕区），避免字幕干扰得分。"""
@@ -262,6 +328,7 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
             _log.info(f"[FRAMES] ... processed {gi+1}/{len(groups)} slide groups")
 
     _log.info(f"[FRAMES] {len(groups)} slides ({subtitle_groups} with subtitle), {len(candidates)} with text, from {len(frames)} frames")
+    duration = frames[-1][0] if frames else 0.0
 
     # 结尾帧兜底
     try:
@@ -276,11 +343,12 @@ def extract_keyframes(video_path: str, output_dir: str) -> list[tuple[float, str
         pass
 
     # 长视频最多 MAX_KEYFRAMES 帧
-    if len(candidates) > MAX_KEYFRAMES:
-        _log.info(f"[FRAMES] {len(candidates)} > {MAX_KEYFRAMES} cap, keeping top {MAX_KEYFRAMES}")
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        candidates = candidates[:MAX_KEYFRAMES]
-        candidates.sort(key=lambda x: x[0])
+    strategy, cap, groups_per_minute = _choose_frame_strategy(len(groups), len(candidates), duration)
+    _log.info(
+        "[FRAMES] strategy=%s groups=%d candidates=%d duration=%.1fs groups_per_min=%.1f cap=%d",
+        strategy, len(groups), len(candidates), duration, groups_per_minute, cap,
+    )
+    candidates = _select_candidates(candidates, cap, strategy)
 
     _log.info(f"[FRAMES] {len(candidates)} keyframes selected, extracting full frames...")
 

@@ -81,7 +81,13 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
     raw_ocr = []
     for idx, (ts, fp) in enumerate(keyframes):
         if idx < len(results) and results[idx].text.strip():
+            logger.info(
+                "[OCR] candidate frame idx=%d ts=%.2fs text_len=%d reason=ocr-text",
+                idx, ts, len(results[idx].text.strip()),
+            )
             raw_ocr.append((idx, ts, fp, results[idx]))
+        else:
+            logger.info("[OCR] candidate frame idx=%d ts=%.2fs reason=no-ocr-text", idx, ts)
 
     # 跨帧文字去重：如果当前帧和前一帧文字大量重合，只保留文字量更多的那个
     ocr_results = []
@@ -94,9 +100,19 @@ def _process_video(material: Material, db: Session) -> tuple[int, int, list[str]
             if overlap > 0.85:
                 # 高重合 → 合并（保留文字量更多的那个，更新时间戳为较晚的那个）
                 if len(cur_text) > len(prev_text):
+                    logger.info(
+                        "[OCR] dedup replace prev_ts=%.2fs with ts=%.2fs overlap=%.3f prev_len=%d cur_len=%d",
+                        ocr_results[-1][1], ts, overlap, len(prev_text), len(cur_text),
+                    )
                     ocr_results[-1] = (idx, ts, fp, result)
+                else:
+                    logger.info(
+                        "[OCR] dedup drop ts=%.2fs overlap=%.3f prev_len=%d cur_len=%d",
+                        ts, overlap, len(prev_text), len(cur_text),
+                    )
                 skipped += 1
                 continue
+        logger.info("[OCR] keep frame idx=%d ts=%.2fs text_len=%d", idx, ts, len(cur_text))
         ocr_results.append((idx, ts, fp, result))
 
     logger.info(f"[OCR] session {material.session_id}: {len(raw_ocr)} frames OCR'd, {skipped} deduped, {len(ocr_results)} kept, {time.time()-t1:.2f}s")
