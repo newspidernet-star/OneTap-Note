@@ -26,6 +26,7 @@ if (Test-Path $ExePath) {
     Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
     Copy-Item (Join-Path $DesktopDir "loading.html") $AppDir -Force
     Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
+    Copy-Item (Join-Path $DesktopDir "assets") $AppDir -Recurse -Force
     Write-Host ""
     Write-Host "  Update complete!" -ForegroundColor Green
     Write-Host "  Exe: $ExePath" -ForegroundColor Green
@@ -39,6 +40,7 @@ Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "loading.html") $AppDir -Force
 Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
+Copy-Item (Join-Path $DesktopDir "assets") $AppDir -Recurse -Force
 
 # Rename exe
 $oldExe = Join-Path $OutDir "electron.exe"

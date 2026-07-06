@@ -12,6 +12,7 @@ let tray = null;
 let healthPollTimer = null;
 let isQuiting = false;
 let lastStartupStatus = null;
+let closePromptOpen = false;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
@@ -201,10 +202,43 @@ function applyTitleBarTheme(isDark) {
   }
 }
 
+function getAppIconPath() {
+  return path.join(__dirname, "assets", "icon.png");
+}
+
+function createAppIcon(size) {
+  const icon = nativeImage.createFromPath(getAppIconPath());
+  if (!icon.isEmpty()) {
+    return icon.resize({ width: size, height: size, quality: "best" });
+  }
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+      <rect width="32" height="32" rx="8" fill="#1B2220"/>
+      <path d="M16 5l2.1 6.9L25 14l-6.9 2.1L16 23l-2.1-6.9L7 14l6.9-2.1L16 5z" fill="#E2EAE5"/>
+      <path d="M23 21l.9 2.9L27 25l-3.1.9L23 29l-.9-3.1L19 25l3.1-1.1L23 21z" fill="#91B8A7"/>
+    </svg>`;
+  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
+}
+
+function requestCloseChoice() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (closePromptOpen) {
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  closePromptOpen = true;
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send("desktop-close-request");
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
     title: "Smart Scribe",
+    icon: createAppIcon(256),
     show: false,
     autoHideMenuBar: true,
     backgroundColor: THEME.dark.bg,
@@ -231,40 +265,23 @@ function createWindow() {
   mainWindow.on("close", (event) => {
     if (isQuiting) return;
     event.preventDefault();
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: "question",
-      title: "Smart Scribe",
-      message: "要关闭 Smart Scribe 吗？",
-      detail: "隐藏到系统托盘会保留后台服务，下次打开更快；直接退出会关闭本地后端。",
-      buttons: ["隐藏到系统托盘", "直接退出", "取消"],
-      defaultId: 0,
-      cancelId: 2,
-    });
-    if (choice === 0) {
-      createTray();
-      mainWindow.hide();
-    } else if (choice === 1) {
+
+    const currentUrl = mainWindow.webContents.getURL();
+    if (!currentUrl.startsWith(BACKEND_URL)) {
       isQuiting = true;
       app.quit();
+      return;
     }
+
+    requestCloseChoice();
   });
 
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-function createTrayIcon() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-      <rect width="32" height="32" rx="8" fill="#1B2220"/>
-      <path d="M16 5l2.1 6.9L25 14l-6.9 2.1L16 23l-2.1-6.9L7 14l6.9-2.1L16 5z" fill="#E2EAE5"/>
-      <path d="M23 21l.9 2.9L27 25l-3.1.9L23 29l-.9-3.1L19 25l3.1-1.1L23 21z" fill="#91B8A7"/>
-    </svg>`;
-  return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
-}
-
 function createTray() {
   if (tray) return;
-  tray = new Tray(createTrayIcon());
+  tray = new Tray(createAppIcon(16));
   tray.setToolTip("Smart Scribe");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "显示 Smart Scribe", click: () => showMainWindow() },
@@ -304,6 +321,19 @@ ipcMain.on("set-theme", (_event, isDark) => {
 });
 
 ipcMain.handle("get-startup-status", () => lastStartupStatus);
+
+ipcMain.on("desktop-close-action", (_event, action) => {
+  closePromptOpen = false;
+  if (action === "tray") {
+    createTray();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+  } else if (action === "quit") {
+    isQuiting = true;
+    app.quit();
+  } else {
+    showMainWindow();
+  }
+});
 
 app.whenReady().then(async () => {
   const root = getProjectRoot();

@@ -21,7 +21,8 @@
     "files": [
       "main.cjs",
       "preload.cjs",
-      "loading.html"
+      "loading.html",
+      "assets/**"
     ],
     "win": {
       "target": "dir"

@@ -12,4 +12,10 @@ contextBridge.exposeInMainWorld("smartScribe", {
     ipcRenderer.on("startup-status", (_event, payload) => callback(payload));
   },
   getStartupStatus: () => ipcRenderer.invoke("get-startup-status"),
+  onCloseRequest: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("desktop-close-request", handler);
+    return () => ipcRenderer.removeListener("desktop-close-request", handler);
+  },
+  chooseCloseAction: (action) => ipcRenderer.send("desktop-close-action", action),
 });

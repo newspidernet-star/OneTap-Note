@@ -157,6 +157,7 @@ export default function Workstation() {
   const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
   const [creatingSession, setCreatingSession] = useState(false);
   const [appendPanelOpen, setAppendPanelOpen] = useState(false);
+  const [showDesktopClosePrompt, setShowDesktopClosePrompt] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -166,6 +167,16 @@ export default function Workstation() {
   }, [isDark]);
 
   const isDesktop = !!(window as any).smartScribe?.isDesktop;
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    const unsubscribe = (window as any).smartScribe?.onCloseRequest?.(() => {
+      setShowDesktopClosePrompt(true);
+    });
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [isDesktop]);
 
   const hasSession = !!activeSessionId;
   const isMock = false;
@@ -658,6 +669,11 @@ export default function Workstation() {
       return;
     }
     await updateSettingsMut.mutateAsync({ settings: changed });
+  };
+
+  const handleDesktopCloseAction = (action: "tray" | "quit" | "cancel") => {
+    setShowDesktopClosePrompt(false);
+    (window as any).smartScribe?.chooseCloseAction?.(action);
   };
 
   return (
@@ -1386,6 +1402,74 @@ export default function Workstation() {
                   className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2">
                   {deleteMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   删除
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDesktopClosePrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
+            onClick={() => handleDesktopCloseAction("cancel")}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 14 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 14 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-white/10 bg-card/95 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-border/60 bg-foreground/[0.03] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">关闭 Smart Scribe？</h3>
+                    <p className="text-xs text-muted-foreground">可以先收进托盘，下一次打开会更快。</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDesktopCloseAction("cancel")}
+                  className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+                  aria-label="取消关闭"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-3 px-5 py-5">
+                <button
+                  onClick={() => handleDesktopCloseAction("tray")}
+                  className="group flex w-full items-center justify-between rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-left transition-all hover:border-primary/35 hover:bg-primary/15"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">隐藏到系统托盘</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">保留本地服务，适合待会儿还要继续用。</span>
+                  </span>
+                  <span className="text-lg text-primary transition-transform group-hover:translate-x-0.5">→</span>
+                </button>
+                <button
+                  onClick={() => handleDesktopCloseAction("quit")}
+                  className="group flex w-full items-center justify-between rounded-xl border border-border bg-background/70 px-4 py-3 text-left transition-all hover:border-red-400/35 hover:bg-red-500/10"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">直接退出</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">关闭窗口，也停止本地后端。</span>
+                  </span>
+                  <span className="text-lg text-muted-foreground transition-transform group-hover:translate-x-0.5">→</span>
+                </button>
+                <button
+                  onClick={() => handleDesktopCloseAction("cancel")}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+                >
+                  继续留在应用里
                 </button>
               </div>
             </motion.div>
