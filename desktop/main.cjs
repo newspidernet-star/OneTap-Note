@@ -1,11 +1,4 @@
 ﻿// Smart Scribe - Electron main process
-//
-// Responsibilities:
-//   1. Ensure backend dependencies are installed (first run).
-//   2. Launch the FastAPI backend via PowerShell with SMART_SCRIBE_NO_BROWSER=1.
-//   3. Poll /api/health until the backend is ready.
-//   4. Create a BrowserWindow loading http://127.0.0.1:8000.
-//   5. Kill the backend subprocess when the window closes.
 
 const { app, BrowserWindow, dialog } = require("electron");
 const { spawn, exec } = require("node:child_process");
@@ -19,18 +12,55 @@ let healthPollTimer = null;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
-const HEALTH_POLL_INTERVAL_MS = 1000;
+const HEALTH_POLL_INTERVAL_MS = 300;
+
+const LOADING_HTML = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100vh; overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+  .logo {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 32px; color: #58a6ff;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #30363d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 20px;
+  }
+  .text { font-size: 13px; color: #8b949e; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="logo">Smart Scribe</div>
+  <div class="spinner"></div>
+  <div class="text">正在启动服务...</div>
+</body>
+</html>
+`;
 
 function getProjectRoot() {
   if (app.isPackaged) {
-    // Packaged exe lives at desktop/dist/win-unpacked/Smart Scribe.exe
-    // Project root is 3 levels up from the exe directory
     const exeDir = path.dirname(app.getPath("exe"));
     const localRoot = path.resolve(exeDir, "..", "..", "..");
     if (fs.existsSync(path.join(localRoot, "backend", ".venv", "Scripts", "python.exe"))) {
       return localRoot;
     }
-    // Fallback: resources/app (for future full-bundle distribution)
     return path.join(process.resourcesPath, "app");
   }
   return path.resolve(__dirname, "..");
@@ -108,7 +138,7 @@ function checkHealth() {
       res.resume();
     });
     req.on("error", () => resolve(false));
-    req.setTimeout(3000, () => { req.destroy(); resolve(false); });
+    req.setTimeout(2000, () => { req.destroy(); resolve(false); });
   });
 }
 
@@ -131,16 +161,16 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
     title: "Smart Scribe",
-    show: false,
+    show: true,
     autoHideMenuBar: true,
+    backgroundColor: "#0d1117",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  mainWindow.loadURL(BACKEND_URL);
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(LOADING_HTML));
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
@@ -158,8 +188,17 @@ function killBackend() {
 
 app.whenReady().then(async () => {
   const root = getProjectRoot();
+
+  // Show window immediately with loading screen
+  createWindow();
+
+  // Ensure dependencies (window is already showing loading screen)
   await ensureInstalled(root);
+
+  // Start backend
   startBackend(root);
+
+  // Wait for health
   try {
     await waitForHealth();
   } catch (err) {
@@ -169,9 +208,19 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  createWindow();
+
+  // Backend ready — navigate to the real app
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL(BACKEND_URL);
+  }
+
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(BACKEND_URL);
+      }
+    }
   });
 });
 

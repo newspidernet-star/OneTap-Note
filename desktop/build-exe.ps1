@@ -2,7 +2,7 @@
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File desktop\build-exe.ps1
 
 $ErrorActionPreference = "Stop"
-$DesktopDir = Split-Path $PSScriptRoot -Parent
+$DesktopDir = $PSScriptRoot
 $ProjectRoot = Split-Path $DesktopDir -Parent
 
 $ElectronDist = Join-Path $DesktopDir "node_modules\electron\dist"
@@ -15,26 +15,35 @@ if (-not (Test-Path $ElectronDist)) {
 
 Write-Host "Building Smart Scribe.exe..." -ForegroundColor Cyan
 
-# Clean old build
-if (Test-Path $OutDir) { Remove-Item $OutDir -Recurse -Force }
-
-# Copy electron binary
-Copy-Item $ElectronDist $OutDir -Recurse
-
-# Create app directory with our code
 $AppDir = Join-Path $OutDir "resources\app"
+$ExePath = Join-Path $OutDir "Smart Scribe.exe"
+
+# If exe already exists, just update the app files (avoids locked-DLL issue)
+if (Test-Path $ExePath) {
+    Write-Host "  Existing build found, updating app files only..." -ForegroundColor DarkGray
+    New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+    Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
+    Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
+    Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
+    Write-Host ""
+    Write-Host "  Update complete!" -ForegroundColor Green
+    Write-Host "  Exe: $ExePath" -ForegroundColor Green
+    exit 0
+}
+
+# Full build (first time)
+Copy-Item $ElectronDist $OutDir -Recurse
 New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
-Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir
-Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir
-Copy-Item (Join-Path $DesktopDir "package.json") $AppDir
+Copy-Item (Join-Path $DesktopDir "main.cjs") $AppDir -Force
+Copy-Item (Join-Path $DesktopDir "preload.cjs") $AppDir -Force
+Copy-Item (Join-Path $DesktopDir "package.json") $AppDir -Force
 
 # Rename exe
 $oldExe = Join-Path $OutDir "electron.exe"
-$newExe = Join-Path $OutDir "Smart Scribe.exe"
-Rename-Item $oldExe $newExe
+Rename-Item $oldExe $ExePath
 
 Write-Host ""
 Write-Host "  Build complete!" -ForegroundColor Green
-Write-Host "  Exe: $newExe" -ForegroundColor Green
+Write-Host "  Exe: $ExePath" -ForegroundColor Green
 Write-Host ""
 Write-Host "  You can create a desktop shortcut to this exe." -ForegroundColor DarkGray
