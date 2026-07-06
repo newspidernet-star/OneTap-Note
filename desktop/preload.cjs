@@ -1,10 +1,11 @@
 // Smart Scribe - Electron preload script
-// contextBridge exposes a minimal API to the renderer (currently empty,
-// but kept for future use such as file drag-drop or native dialogs).
+// Exposes a minimal API to the renderer for theme + desktop detection.
 
-const { contextBridge } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("smartScribe", {
   version: "0.1.0",
   platform: process.platform,
+  isDesktop: true,
+  setTheme: (isDark) => ipcRenderer.send("set-theme", isDark),
 });

@@ -162,7 +162,10 @@ export default function Workstation() {
     const root = document.documentElement;
     if (isDark) root.classList.add('dark');
     else root.classList.remove('dark');
+    (window as any).smartScribe?.setTheme?.(isDark);
   }, [isDark]);
+
+  const isDesktop = !!(window as any).smartScribe?.isDesktop;
 
   const hasSession = !!activeSessionId;
   const isMock = false;
@@ -659,7 +662,7 @@ export default function Workstation() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
-      <header className="safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative">
+      <header className={`safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative ${isDesktop ? 'pr-[140px]' : ''}`}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-primary">
             <Sparkles className="w-5 h-5" />

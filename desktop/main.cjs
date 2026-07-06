@@ -1,6 +1,6 @@
 ﻿// Smart Scribe - Electron main process
 
-const { app, BrowserWindow, dialog } = require("electron");
+const { app, BrowserWindow, dialog, Tray, Menu, nativeImage, ipcMain } = require("electron");
 const { spawn, exec } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -8,11 +8,21 @@ const http = require("node:http");
 
 let backendProcess = null;
 let mainWindow = null;
+let tray = null;
 let healthPollTimer = null;
+let isQuiting = false;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
+
+// Theme colors matching frontend --card CSS variable (header uses bg-card)
+// Dark:  --card: 160 10% 12%   --foreground: 150 18% 90%
+// Light: --card: 0 0% 98%      --foreground: 164 18% 13%
+const THEME = {
+  dark:  { bg: "hsl(160 10% 12%)", symbol: "hsl(150 18% 90%)" },
+  light: { bg: "hsl(0 0% 98%)",   symbol: "hsl(164 18% 13%)" },
+};
 
 const LOADING_HTML = `
 <!DOCTYPE html>
@@ -22,8 +32,8 @@ const LOADING_HTML = `
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #0d1117;
-    color: #e6edf3;
+    background: hsl(160 10% 12%);
+    color: hsl(150 18% 90%);
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -32,17 +42,17 @@ const LOADING_HTML = `
   }
   .logo {
     font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
-    margin-bottom: 32px; color: #58a6ff;
+    margin-bottom: 32px; color: hsl(150 16% 86%);
   }
   .spinner {
     width: 36px; height: 36px;
-    border: 3px solid #30363d;
-    border-top-color: #58a6ff;
+    border: 3px solid hsl(158 10% 18%);
+    border-top-color: hsl(150 16% 86%);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin-bottom: 20px;
   }
-  .text { font-size: 13px; color: #8b949e; }
+  .text { font-size: 13px; color: hsl(150 18% 90% / 0.5); }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -157,13 +167,26 @@ function waitForHealth(timeoutMs) {
   });
 }
 
+function applyTitleBarTheme(isDark) {
+  const t = isDark ? THEME.dark : THEME.light;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setTitleBarOverlay({ color: t.bg, symbolColor: t.symbol });
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
     title: "Smart Scribe",
     show: true,
     autoHideMenuBar: true,
-    backgroundColor: "#0d1117",
+    backgroundColor: THEME.dark.bg,
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: THEME.dark.bg,
+      symbolColor: THEME.dark.symbol,
+      height: 48,
+    },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -171,7 +194,43 @@ function createWindow() {
     },
   });
   mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(LOADING_HTML));
+
+  // Close = hide to tray (backend keeps running)
+  mainWindow.on("close", (e) => {
+    if (!isQuiting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
   mainWindow.on("closed", () => { mainWindow = null; });
+}
+
+function createTray() {
+  // Use a small 16x16 transparent icon (built into Electron as placeholder)
+  const icon = nativeImage.createEmpty();
+  tray = new Tray(icon);
+  tray.setToolTip("Smart Scribe");
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: "显示窗口", click: () => showMainWindow() },
+    { type: "separator" },
+    { label: "退出", click: () => { isQuiting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(contextMenu);
+
+  tray.on("click", () => showMainWindow());
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(BACKEND_URL);
+    }
+  } else {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 }
 
 function killBackend() {
@@ -186,47 +245,51 @@ function killBackend() {
   }
 }
 
+// IPC: receive theme changes from renderer
+ipcMain.on("set-theme", (_event, isDark) => {
+  applyTitleBarTheme(isDark);
+});
+
 app.whenReady().then(async () => {
   const root = getProjectRoot();
 
-  // Show window immediately with loading screen
+  createTray();
+
+  // Step 1: check if backend is already running
+  const alreadyRunning = await checkHealth();
+  console.log("[startup] backend already running:", alreadyRunning);
+
   createWindow();
 
-  // Ensure dependencies (window is already showing loading screen)
-  await ensureInstalled(root);
-
-  // Start backend
-  startBackend(root);
-
-  // Wait for health
-  try {
-    await waitForHealth();
-  } catch (err) {
-    dialog.showErrorBox("Smart Scribe - 启动失败",
-      "后端服务未能启动：\n" + err.message + "\n\n请尝试双击 start-windows.bat 启动，或检查日志。");
-    killBackend();
-    app.quit();
-    return;
-  }
-
-  // Backend ready — navigate to the real app
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadURL(BACKEND_URL);
+  if (alreadyRunning) {
+    // Backend is alive — go straight to the app
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(BACKEND_URL);
+    }
+  } else {
+    // Need to start backend
+    await ensureInstalled(root);
+    startBackend(root);
+    try {
+      await waitForHealth();
+    } catch (err) {
+      dialog.showErrorBox("Smart Scribe - 启动失败",
+        "后端服务未能启动：\n" + err.message + "\n\n请尝试双击 start-windows.bat 启动，或检查日志。");
+      killBackend();
+      app.quit();
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(BACKEND_URL);
+    }
   }
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(BACKEND_URL);
-      }
-    }
+    showMainWindow();
   });
 });
 
-app.on("window-all-closed", () => {
+app.on("before-quit", () => {
+  isQuiting = true;
   killBackend();
-  if (process.platform !== "darwin") app.quit();
 });
-
-app.on("before-quit", () => { killBackend(); });
