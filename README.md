@@ -132,6 +132,31 @@ http://localhost:8000
 
 Docker 镜像会先构建前端，再由后端统一托管页面和接口。
 
+### 方法三：桌面应用（Electron）
+
+如果你希望双击一个应用图标、像用普通桌面软件一样使用 Smart Scribe，而不是打开浏览器标签页：
+
+```powershell
+git clone https://github.com/newspidernet-star/smart-scribe.git
+cd smart-scribe
+cd desktop
+npm install
+npm run dev
+```
+
+启动后会出现一个独立的 **Smart Scribe** 桌面窗口（带最小化 / 最大化 / 关闭按钮），而不是浏览器标签页。Electron 会自动复用现有的安装和启动脚本：
+
+- 首次运行时，如果后端依赖没装好，会弹出提示并自动运行 `scripts/setup-windows.ps1`。
+- 依赖就绪后，Electron 会以 `SMART_SCRIBE_NO_BROWSER=1` 模式启动后端（只起 FastAPI，不额外打开 Edge/Chrome）。
+- Electron 轮询 `http://127.0.0.1:8000/api/health`，后端就绪后才显示窗口，避免黑屏。
+- 关闭窗口时，Electron 启动的后端进程会一起退出，不会残留。
+
+> **第一版不是完全免安装的**：它仍然需要系统里有 Python、Node.js、ffmpeg 等依赖（首次运行会自动安装）。它的目标是"像软件一样的窗口体验"，而不是把整个运行环境打包进 exe。
+>
+> `start-windows.bat` 原有行为不受影响——双击 bat 仍然会打开 Edge/Chrome 的 app 窗口。
+
+后续可以用 `npm run dist` 打包成 `Smart Scribe.exe` 安装包（基于 electron-builder + nsis）。
+
 ## 更完整的功能说明
 
 ### 素材处理
