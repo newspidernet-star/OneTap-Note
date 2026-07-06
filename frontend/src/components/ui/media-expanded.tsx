@@ -186,8 +186,8 @@ export default function MediaExpanded({
             )}
 
             {canCapture && (
-              <div className="absolute inset-x-3 bottom-3 z-10 rounded-2xl bg-black/70 p-2 text-white shadow-2xl backdrop-blur">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="absolute inset-x-2 bottom-2 z-10 max-h-[42vh] overflow-y-auto rounded-2xl bg-black/75 p-2 text-white shadow-2xl backdrop-blur sm:inset-x-3 sm:bottom-3">
+                <div className="grid grid-cols-[auto_auto_1fr] items-center gap-2 max-sm:grid-cols-[auto_1fr]">
                   <button
                     onClick={() => setPickMode((v) => !v)}
                     className={cn(
@@ -211,16 +211,16 @@ export default function MediaExpanded({
                         <li>拖到想补充的画面</li>
                         <li>标记当前帧，可选多个</li>
                         <li>处理全部后自动加入时间线</li>
-                        <li>完成后重新生成 AI 总结</li>
+                        <li>完成后自动重新生成 AI 总结</li>
                       </ol>
                     </PopoverContent>
                   </Popover>
 
-                  <span className="min-w-[82px] text-xs font-mono text-white/80">
+                  <span className="min-w-[82px] justify-self-end text-xs font-mono text-white/80">
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  <div className="relative h-2 min-w-[120px] flex-1 rounded-full bg-white/20">
+                  <div className="relative h-2 min-w-[120px] rounded-full bg-white/20 max-sm:col-span-2">
                     <div className="h-full rounded-full bg-white/70" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
                     {duration > 0 && pickedFrames.map((ts) => (
                       <i
@@ -233,7 +233,7 @@ export default function MediaExpanded({
                 </div>
 
                 {pickMode && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2 max-sm:flex-col max-sm:items-stretch">
                     <button onClick={addCurrentFrame} className="inline-flex h-8 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white hover:bg-amber-600">
                       <Plus className="h-3.5 w-3.5" />
                       标记当前帧
@@ -246,7 +246,7 @@ export default function MediaExpanded({
                         </button>
                       </span>
                     ))}
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:justify-between">
                       {pickedFrames.length > 0 && (
                         <button onClick={() => setPickedFrames([])} className="text-xs text-white/60 hover:text-white">清空</button>
                       )}

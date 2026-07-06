@@ -444,9 +444,9 @@ const AudioPlayer = ({
                   </div>
                 </motion.div>
 
-<motion.div className="flex w-full flex-wrap items-center justify-between gap-2">
+<motion.div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 max-sm:grid-cols-1 max-sm:justify-items-center">
                    <motion.div
-                     className="order-2"
+                     className="order-2 max-sm:order-1"
                      whileHover={{ scale: 1.1 }}
                      whileTap={{ scale: 0.9 }}
                    >
@@ -470,7 +470,7 @@ const AudioPlayer = ({
 
                     {/* 选帧模式开关 + 帮助按钮（位于控制栏左侧） */}
                     {canCapture && (
-                      <div className="order-1 flex min-w-0 items-center gap-1.5">
+                      <div className="order-1 flex min-w-0 items-center gap-1.5 justify-self-start max-sm:order-2 max-sm:w-full max-sm:justify-center">
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Button
                             onClick={(event) => {
@@ -516,7 +516,7 @@ const AudioPlayer = ({
                     )}
 
                     {/* 音量控制 + 全屏按钮（音量调节位于全屏按钮左侧） */}
-                    <div className="order-3 ml-auto flex min-w-0 items-center gap-2">
+                    <div className="order-3 ml-auto flex min-w-0 items-center gap-2 justify-self-end max-sm:ml-0 max-sm:w-full max-sm:justify-center">
                       <motion.div
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
@@ -547,7 +547,7 @@ const AudioPlayer = ({
                         showTooltip
                         tooltipContent={(value) => `${value}`}
                         aria-label="音量"
-                        className="w-20 sm:w-24"
+                        className="w-24 max-sm:w-28"
                       />
 
                       <motion.div
@@ -581,7 +581,7 @@ const AudioPlayer = ({
                       className="overflow-hidden"
                     >
                       <div className="mt-2 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-3 dark:bg-amber-400/5">
-                        <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="mb-2 flex items-center justify-between gap-2 max-sm:flex-col max-sm:items-stretch">
                           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
                             <BookmarkPlus className="h-3.5 w-3.5" />
                             选帧模式
@@ -589,7 +589,7 @@ const AudioPlayer = ({
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); addCurrentFrame(); }}
-                            className="inline-flex h-7 items-center gap-1 rounded-full bg-amber-500 px-2.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
+                            className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             标记当前帧 {formatTime(getCurrentTime())}
@@ -621,7 +621,7 @@ const AudioPlayer = ({
                         )}
 
                         {pickedFrames.length > 0 && (
-                          <div className="mt-2 flex items-center justify-end gap-2">
+                          <div className="mt-2 flex items-center justify-end gap-2 max-sm:justify-between">
                             <button
                               onClick={(e) => { e.stopPropagation(); setPickedFrames([]); }}
                               className="text-xs text-muted-foreground hover:text-foreground transition-colors"

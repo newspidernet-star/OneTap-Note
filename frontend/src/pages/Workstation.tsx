@@ -1137,7 +1137,7 @@ export default function Workstation() {
             {!displaySummary && !isMock && displayEvidence.length === 0 && (
               <div className="text-center text-xs text-muted-foreground/50 py-8">先上传媒体、处理生成证据块后，点击上方按钮生成总结</div>
             )}
-            <div className="md:hidden mt-4 w-full max-w-[520px]">
+            <div className="hidden mt-4 w-full max-w-[520px]">
               <CollapsibleCard icon={Film} title={`原文证据 · ${displayEvidence.length} 块`} defaultOpen={false}>
                 <div className="space-y-3">
                   {displayEvidence.map((block, i) => {
