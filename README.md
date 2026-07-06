@@ -100,7 +100,11 @@ cd smart-scribe
 docker compose up --build
 ```
 
-当前 Docker 路线仍在对齐 Windows 体验，推荐本地体验优先使用 Windows 一键启动。
+Docker 镜像会先构建前端，再由后端统一托管页面和接口。启动后打开：
+
+```text
+http://localhost:8000
+```
 
 ## API Key
 
@@ -138,7 +142,6 @@ PPT-Grabber / 录制工具 -> frames + audio + manifest -> Smart Scribe -> Obsid
 目前重点方向：
 
 - 更干净的 Obsidian 导出模板。
-- Docker 体验对齐 Windows 一键启动。
 - 移动端和平板响应式细节优化。
 - 后续再评估 exe/桌面化封装。
 

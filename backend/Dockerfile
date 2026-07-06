@@ -1,3 +1,11 @@
+FROM node:20-bookworm-slim AS frontend
+
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# cloudflared quick tunnel: 无公网 IP 时自动为阿里云 ASR 回拉音频建立临时隧道
+# cloudflared quick tunnel for remote ASR callbacks when no public IP is available.
 ARG CLOUDFLARED_VERSION=2024.12.2
 RUN arch=$(uname -m) && \
     case "$arch" in x86_64) cf_arch=amd64 ;; aarch64) cf_arch=arm64 ;; *) echo "unsupported arch $arch" && exit 1 ;; esac && \
@@ -16,11 +24,14 @@ RUN arch=$(uname -m) && \
     chmod +x /usr/local/bin/cloudflared
 
 WORKDIR /app
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install --with-deps chromium
 
-COPY . .
+COPY backend/ .
+COPY --from=frontend /frontend/dist /app/frontend/dist
+
+ENV SMART_SCRIBE_FRONTEND_DIST_DIR=/app/frontend/dist
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

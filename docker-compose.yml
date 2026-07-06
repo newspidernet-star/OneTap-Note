@@ -1,10 +1,14 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - ./backend/storage:/app/storage
     environment:
-      - SMART_SCRIBE_OCR_MODE=cloud
+      SMART_SCRIBE_OCR_MODE: cloud
+      SMART_SCRIBE_TUNNEL: auto
+      SMART_SCRIBE_FRONTEND_DIST_DIR: /app/frontend/dist
