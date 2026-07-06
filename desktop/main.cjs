@@ -1,6 +1,6 @@
 ﻿// Smart Scribe - Electron main process
 
-const { app, BrowserWindow, dialog, Tray, Menu, nativeImage, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn, exec } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -8,7 +8,6 @@ const http = require("node:http");
 
 let backendProcess = null;
 let mainWindow = null;
-let tray = null;
 let healthPollTimer = null;
 let isQuiting = false;
 let lastStartupStatus = null;
@@ -24,6 +23,11 @@ const THEME = {
   dark:  { bg: "#1B2220", symbol: "#E2EAE5" },
   light: { bg: "#FAFAFA", symbol: "#1B2724" },
 };
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.exit(0);
+}
 
 const SETUP_STEPS = [
   { pattern: /Proxy detected|No proxy detected/i, title: "检测网络代理", progress: 8 },
@@ -223,30 +227,7 @@ function createWindow() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 
-  // Close = hide to tray (backend keeps running)
-  mainWindow.on("close", (e) => {
-    if (!isQuiting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
-  });
   mainWindow.on("closed", () => { mainWindow = null; });
-}
-
-function createTray() {
-  // Use a small 16x16 transparent icon (built into Electron as placeholder)
-  const icon = nativeImage.createEmpty();
-  tray = new Tray(icon);
-  tray.setToolTip("Smart Scribe");
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: "显示窗口", click: () => showMainWindow() },
-    { type: "separator" },
-    { label: "退出", click: () => { isQuiting = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(contextMenu);
-
-  tray.on("click", () => showMainWindow());
 }
 
 function showMainWindow() {
@@ -283,8 +264,6 @@ ipcMain.handle("get-startup-status", () => lastStartupStatus);
 app.whenReady().then(async () => {
   const root = getProjectRoot();
   const splashStartedAt = Date.now();
-
-  createTray();
 
   // Step 1: check if backend is already running
   const alreadyRunning = await checkHealth();
@@ -325,6 +304,16 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     showMainWindow();
   });
+});
+
+app.on("second-instance", () => {
+  showMainWindow();
+});
+
+app.on("window-all-closed", () => {
+  isQuiting = true;
+  killBackend();
+  app.quit();
 });
 
 app.on("before-quit", () => {
