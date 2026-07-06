@@ -61,7 +61,7 @@ const CitationTag = ({ id, type, onClick }: { id: string; type: string; onClick:
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={(e) => { e.stopPropagation(); onClick(e); }}
-      className={`rounded-full border px-2 py-0.5 text-xs font-mono cursor-pointer transition-colors ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary hover:bg-primary/15' : 'border-slate-500/25 bg-slate-500/10 text-slate-600 hover:bg-slate-500/15 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200'}`}
+      className={`rounded-full border px-2 py-0.5 text-xs font-mono cursor-pointer transition-colors ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary hover:bg-primary/15' : 'border-cyan-600/25 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200'}`}
     >
       {id}
     </motion.button>
@@ -1036,7 +1036,7 @@ export default function Workstation() {
                       return (
                         <div key={block.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
                           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className={`rounded-md border px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "border-primary/20 bg-primary/10 text-primary" : "border-slate-500/25 bg-slate-500/10 text-slate-600 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200"}`}>
+                            <span className={`rounded-md border px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "border-primary/20 bg-primary/10 text-primary" : "border-cyan-600/25 bg-cyan-50 text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200"}`}>
                               {block.id}
                             </span>
                             <span className="font-mono">{fmtTimestamp(block.timestamp)}</span>
@@ -1081,11 +1081,11 @@ export default function Workstation() {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }} whileHover={{ scale: 1.005, x: 2 }}
                         className={`relative p-3 rounded-xl border bg-card cursor-pointer transition-all duration-300
-                          ${isSpeech ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-slate-500 dark:border-l-cyan-500'}
+                          ${isSpeech ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-cyan-600 dark:border-l-cyan-500'}
                           ${isHighlighted ? 'ring-2 ring-primary shadow-[0_0_15px_rgba(233,69,96,0.3)] scale-[1.01]' : 'border-border hover:border-border/80'}`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`px-1.5 py-0.5 rounded border text-[10px] font-mono flex items-center gap-1.5 ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary' : 'border-slate-500/25 bg-slate-500/10 text-slate-600 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200'}`}>
+                          <div className={`px-1.5 py-0.5 rounded border text-[10px] font-mono flex items-center gap-1.5 ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary' : 'border-cyan-600/25 bg-cyan-50 text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200'}`}>
                             {isSpeech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
                             {block.id}
                           </div>
