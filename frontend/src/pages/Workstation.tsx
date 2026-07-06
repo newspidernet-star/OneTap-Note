@@ -61,7 +61,7 @@ const CitationTag = ({ id, type, onClick }: { id: string; type: string; onClick:
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={(e) => { e.stopPropagation(); onClick(e); }}
-      className={`px-2 py-0.5 rounded-full text-xs font-mono text-white cursor-pointer ${isSpeech ? 'bg-blue-500 hover:bg-blue-600' : 'bg-red-500 hover:bg-red-600'}`}
+      className={`rounded-full border px-2 py-0.5 text-xs font-mono cursor-pointer transition-colors ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary hover:bg-primary/15' : 'border-amber-500/25 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15 dark:text-amber-300'}`}
     >
       {id}
     </motion.button>
@@ -825,7 +825,7 @@ export default function Workstation() {
                       onDoubleClick={() => { setRenamingId(s.id); setRenameDraft(s.title); }}
                       className={`w-full text-left px-3 py-2 max-md:py-2.5 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors ${activeSessionId === s.id ? 'bg-primary/10 text-primary' : 'hover:bg-white/5 text-muted-foreground'}`}
                     >
-                      <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-blue-500 animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
+                      <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-primary animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-emerald-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
                       <span className="truncate">{s.title}</span>
                     </button>
                     <button
@@ -870,7 +870,7 @@ export default function Workstation() {
                 />
                 <button
                   onClick={() => setAppendPanelOpen((v) => !v)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-600/20 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   补充资料
@@ -978,7 +978,7 @@ export default function Workstation() {
                       }
                     }}
                     disabled={exportMdMut.isPending}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-600/10 px-3 py-1.5 rounded-full border border-blue-600/20 shadow-sm hover:bg-blue-600/15 transition-colors disabled:opacity-50 dark:bg-primary dark:text-primary-foreground dark:border-primary/20 dark:hover:bg-primary/90"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary/15 disabled:opacity-50"
                   >
                     {exportMdMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
                     复制 MD
@@ -1002,7 +1002,7 @@ export default function Workstation() {
                             if (kp.citations.length > 0) handleCitationClick(kp.citations[0]);
                           }}
                         >
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white border border-blue-700/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform dark:bg-primary dark:text-primary-foreground">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground border border-primary/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform">
                             {idx + 1}
                           </span>
                           <div className="flex-1 min-w-0">
@@ -1036,7 +1036,7 @@ export default function Workstation() {
                       return (
                         <div key={block.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
                           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className={`rounded-md px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "bg-blue-500/10 text-blue-500" : "bg-red-500/10 text-red-500"}`}>
+                            <span className={`rounded-md border px-1.5 py-0.5 font-mono font-bold ${isSpeech ? "border-primary/20 bg-primary/10 text-primary" : "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
                               {block.id}
                             </span>
                             <span className="font-mono">{fmtTimestamp(block.timestamp)}</span>
@@ -1081,11 +1081,11 @@ export default function Workstation() {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }} whileHover={{ scale: 1.005, x: 2 }}
                         className={`relative p-3 rounded-xl border bg-card cursor-pointer transition-all duration-300
-                          ${isSpeech ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-red-500'}
+                          ${isSpeech ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-amber-500'}
                           ${isHighlighted ? 'ring-2 ring-primary shadow-[0_0_15px_rgba(233,69,96,0.3)] scale-[1.01]' : 'border-border hover:border-border/80'}`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`px-1.5 py-0.5 rounded text-[10px] font-mono flex items-center gap-1.5 ${isSpeech ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}>
+                          <div className={`px-1.5 py-0.5 rounded border text-[10px] font-mono flex items-center gap-1.5 ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary' : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>
                             {isSpeech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
                             {block.id}
                           </div>
@@ -1131,7 +1131,7 @@ export default function Workstation() {
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                 transition={{ duration: 0.16, ease: "easeOut" }}
                 onClick={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-                className="absolute bottom-5 left-1/2 z-30 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-blue-600/20 bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 backdrop-blur transition-colors hover:bg-blue-700 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+                className="absolute bottom-5 left-1/2 z-30 inline-flex h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary/20 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-black/10 backdrop-blur transition-colors hover:bg-primary/90"
                 aria-label="回到顶部"
                 title="回到顶部"
               >
@@ -1249,7 +1249,7 @@ export default function Workstation() {
                   <button onClick={() => { setActiveSessionId(s.id); setShowMobileMenu(false); }}
                     className="w-full text-left px-3 py-2 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors hover:bg-white/5 text-muted-foreground"
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-blue-500 animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-green-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
+                    <div className={`w-1.5 h-1.5 rounded-full ${s.id === processingSessionId ? 'bg-primary animate-pulse' : s.status === 'failed' ? 'bg-red-500' : s.status === 'done' ? 'bg-emerald-500' : s.status === 'processing' ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
                     {s.title}
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: s.id, title: s.title }); }}

@@ -151,7 +151,7 @@ export default function IslandButton({
               <button
                 onClick={onGenerate}
                 disabled={!generable}
-                className="group w-full rounded-xl border border-blue-600/20 bg-blue-600 text-white shadow-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 py-3.5 px-4 text-base font-semibold disabled:opacity-45 dark:border-primary/20 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+                className="group w-full rounded-xl border border-primary/20 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 py-3.5 px-4 text-base font-semibold disabled:opacity-45"
               >
                 <span>{status === "done" && !hasMedia ? "重新生成" : "生成 AI 总结"}</span>
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />

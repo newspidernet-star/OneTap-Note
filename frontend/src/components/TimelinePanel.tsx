@@ -80,13 +80,13 @@ export default function TimelinePanel({
               key={speaker}
               className="h-6 px-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card text-muted-foreground text-[11px] font-medium whitespace-nowrap"
             >
-              <i className="w-1.5 h-1.5 rounded-full bg-[#2f7cff]" />
+              <i className="w-1.5 h-1.5 rounded-full bg-primary" />
               {speaker}
             </span>
           ))}
           {blocks.some(isSource) && (
             <span className="h-6 px-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card text-muted-foreground text-[11px] font-medium whitespace-nowrap">
-              <i className="w-1.5 h-1.5 rounded-full bg-[#ff3b4f]" />
+              <i className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               资料
             </span>
           )}
@@ -97,7 +97,7 @@ export default function TimelinePanel({
       <div className="relative flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-6 sm:px-5 bg-card" style={{ maxHeight: 'calc(100dvh - 112px)' }}>
         <div className="relative">
           {/* Gradient timeline line */}
-          <div className="absolute left-[31px] sm:left-[35px] top-7 bottom-8 w-0.5 rounded-full bg-gradient-to-b from-blue-400/25 via-rose-400/25 to-blue-400/25 dark:from-blue-400/15 dark:via-rose-400/15 dark:to-blue-400/15" />
+          <div className="absolute left-[31px] sm:left-[35px] top-7 bottom-8 w-0.5 rounded-full bg-gradient-to-b from-primary/20 via-amber-400/20 to-primary/20" />
 
           <AnimatePresence>
           {blocks.map((block, i) => {
@@ -116,8 +116,8 @@ export default function TimelinePanel({
                 >
                   {/* Node */}
                   <div
-                    className={`relative z-10 w-[32px] h-[32px] rounded-[11px] grid place-items-center mt-0.5 text-white text-xs font-extrabold shadow-[0_6px_14px_rgba(47,124,255,0.24)] ${
-                      speech ? "bg-[#2f7cff]" : "bg-[#ff3b4f] shadow-[0_6px_14px_rgba(255,59,79,0.20)]"
+                    className={`relative z-10 w-[32px] h-[32px] rounded-[11px] grid place-items-center mt-0.5 text-xs font-extrabold shadow-sm ${
+                      speech ? "bg-primary text-primary-foreground" : "bg-amber-500/90 text-white"
                     }`}
                   >
                     {nodeLabel(block)}
@@ -132,14 +132,14 @@ export default function TimelinePanel({
                         : "border-border shadow-[0_8px_18px_rgba(22,28,45,0.04)]"
                     } ${
                       isHighlighted
-                        ? "border-[rgba(47,124,255,0.6)] shadow-[0_0_20px_rgba(47,124,255,0.25)] ring-1 ring-[rgba(47,124,255,0.3)]"
+                        ? "border-primary/50 shadow-[0_0_20px_hsl(var(--primary)/0.18)] ring-1 ring-primary/25"
                         : ""
                     }`}
                   >
                     {/* Left accent */}
                     <div
                       className={`absolute inset-y-0 left-0 w-1 ${
-                        speech ? "bg-[#2f7cff]" : "bg-[#ff3b4f]"
+                        speech ? "bg-primary" : "bg-amber-500"
                       }`}
                     />
 
@@ -150,7 +150,7 @@ export default function TimelinePanel({
                           className={`h-[22px] px-1.5 inline-flex items-center gap-1 rounded-md text-[10px] font-extrabold font-mono whitespace-nowrap ${
                             speech
                               ? "text-primary bg-primary/10"
-                              : "text-destructive bg-destructive/10"
+                              : "text-amber-700 bg-amber-500/10 dark:text-amber-300"
                           }`}
                         >
                           {speech ? <Mic2 className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}

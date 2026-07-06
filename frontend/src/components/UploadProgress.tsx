@@ -16,7 +16,7 @@ interface Props {
 
 const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
   idle: { label: "待上传", accent: "text-muted-foreground" },
-  uploading: { label: "处理中…", accent: "text-blue-400" },
+  uploading: { label: "处理中…", accent: "text-primary" },
   done: { label: "上传完成", accent: "text-emerald-400" },
   error: { label: "处理失败", accent: "text-red-400" },
 };
@@ -99,7 +99,7 @@ function ProgressIcon({ status }: { status: UploadStatus }) {
   if (status === "uploading") {
     return (
       <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut" }}
-        className="w-10 h-10 rounded-xl border border-blue-400/30 bg-blue-500/10 flex items-center justify-center text-blue-400">
+        className="w-10 h-10 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary">
         <Upload className="w-5 h-5" />
       </motion.div>
     );

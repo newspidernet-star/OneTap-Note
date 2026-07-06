@@ -24,11 +24,11 @@ interface Props {
 }
 
 const statusConfig: Record<IslandStatus, { icon: any; label: string; accent: string }> = {
-  idle: { icon: Film, label: "查看媒体", accent: "text-sky-300" },
-  uploading: { icon: Upload, label: "上传中", accent: "text-blue-400" },
-  ocr: { icon: ScanLine, label: "OCR 识别", accent: "text-violet-400" },
+  idle: { icon: Film, label: "查看媒体", accent: "text-primary" },
+  uploading: { icon: Upload, label: "上传中", accent: "text-primary" },
+  ocr: { icon: ScanLine, label: "OCR 识别", accent: "text-amber-400" },
   transcribing: { icon: Mic2, label: "转写", accent: "text-emerald-400" },
-  matching: { icon: Link2, label: "匹配", accent: "text-blue-400" },
+  matching: { icon: Link2, label: "匹配", accent: "text-primary" },
   summarizing: { icon: Sparkles, label: "总结", accent: "text-amber-300" },
   done: { icon: Check, label: "完成", accent: "text-emerald-400" },
   error: { icon: AlertCircle, label: "失败", accent: "text-red-400" },
@@ -79,7 +79,7 @@ export default function DynamicIsland({
                 {mediaType === "audio" && mediaUrl && (
                   <div className="flex flex-col items-center justify-center h-full gap-3 p-3 bg-gradient-to-b from-[#1a1a2e] to-[#0a0a0c]">
                     <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                      <Mic2 className="w-6 h-6 text-sky-300" />
+                      <Mic2 className="w-6 h-6 text-primary" />
                     </div>
                     <audio ref={videoRef as any} src={mediaUrl} controls autoPlay className="w-4/5" />
                   </div>
@@ -106,7 +106,7 @@ export default function DynamicIsland({
                 <IslandStatusIcon status={status} cfg={cfg} />
                 <span className="text-sm font-medium text-foreground/90 whitespace-nowrap">{cfg.label}</span>
                 {status === "uploading" && uploadProgress > 0 && (
-                  <span className="text-xs font-mono text-blue-400 ml-0.5">{Math.round(uploadProgress)}%</span>
+                  <span className="text-xs font-mono text-primary ml-0.5">{Math.round(uploadProgress)}%</span>
                 )}
                 {status === "error" && errorMessage && (
                   <span className="text-xs text-red-400/80 truncate max-w-[120px] ml-1">{errorMessage}</span>
@@ -142,7 +142,7 @@ function IslandStatusIcon({ status, cfg }: { status: IslandStatus; cfg: any }) {
     return (
       <div className="flex gap-1 items-center">
         {[0, 1, 2].map(i => (
-          <motion.span key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400"
+          <motion.span key={i} className="w-1.5 h-1.5 rounded-full bg-primary"
             animate={{ y: [0, -5, 0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.15 }}
           />
         ))}
