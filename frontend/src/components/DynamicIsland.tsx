@@ -26,10 +26,10 @@ interface Props {
 const statusConfig: Record<IslandStatus, { icon: any; label: string; accent: string }> = {
   idle: { icon: Film, label: "查看媒体", accent: "text-primary" },
   uploading: { icon: Upload, label: "上传中", accent: "text-primary" },
-  ocr: { icon: ScanLine, label: "OCR 识别", accent: "text-amber-400" },
+  ocr: { icon: ScanLine, label: "OCR 识别", accent: "text-primary" },
   transcribing: { icon: Mic2, label: "转写", accent: "text-emerald-400" },
   matching: { icon: Link2, label: "匹配", accent: "text-primary" },
-  summarizing: { icon: Sparkles, label: "总结", accent: "text-amber-300" },
+  summarizing: { icon: Sparkles, label: "总结", accent: "text-emerald-400" },
   done: { icon: Check, label: "完成", accent: "text-emerald-400" },
   error: { icon: AlertCircle, label: "失败", accent: "text-red-400" },
 };
@@ -153,7 +153,7 @@ function IslandStatusIcon({ status, cfg }: { status: IslandStatus; cfg: any }) {
     return (
       <div className="flex items-end gap-1 h-5">
         {[0.4, 0.7, 1].map((h, i) => (
-          <motion.span key={i} className="w-1 rounded-full bg-amber-300"
+          <motion.span key={i} className="w-1 rounded-full bg-emerald-400"
             animate={{ scaleY: [h * 0.3, h, h * 0.3] }}
             transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
             style={{ height: "100%", originY: 1 }}

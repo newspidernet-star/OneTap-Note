@@ -137,8 +137,8 @@
   --ring: 164 18% 22%;
   --chart-1: 164 18% 22%;
   --chart-2: 152 44% 42%;
-  --chart-3: 43 64% 50%;
-  --chart-4: 30 80% 55%;
+  --chart-3: 196 18% 45%;
+  --chart-4: 28 36% 48%;
   --chart-5: 280 65% 60%;
 
   --app-font-sans: 'Inter', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
@@ -229,8 +229,8 @@
   --ring: 150 16% 86%;
   --chart-1: 150 16% 86%;
   --chart-2: 152 44% 62%;
-  --chart-3: 43 82% 62%;
-  --chart-4: 30 80% 55%;
+  --chart-3: 196 22% 62%;
+  --chart-4: 28 42% 62%;
   --chart-5: 280 65% 60%;
 
   --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0, 0.4);
