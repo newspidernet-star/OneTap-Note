@@ -18,9 +18,18 @@ SUBTITLE_SIM_THRESHOLD = 0.85  # 底部相似度低于此值 → 判定该组底
 _log = logging.getLogger("smart_scribe")
 
 COVERAGE_KEYFRAMES = 60
+HARD_MAX_KEYFRAMES = 120
 COVERAGE_BUCKET_SECONDS = 12.0
 COVERAGE_SCENE_GROUPS_PER_MINUTE = 12.0
 COVERAGE_MIN_GROUPS = 45
+
+
+def _dynamic_frame_cap(base_cap: int, groups_count: int, candidates_count: int, duration: float) -> int:
+    minutes = max(duration / 60.0, 0.1)
+    duration_cap = int(minutes * 3.0) + base_cap
+    scene_cap = int(groups_count * 0.8)
+    cap = max(base_cap, duration_cap, scene_cap)
+    return min(candidates_count, HARD_MAX_KEYFRAMES, cap)
 
 
 def _choose_frame_strategy(groups_count: int, candidates_count: int, duration: float) -> tuple[str, int, float]:
@@ -31,11 +40,9 @@ def _choose_frame_strategy(groups_count: int, candidates_count: int, duration: f
         or groups_per_minute >= COVERAGE_SCENE_GROUPS_PER_MINUTE
         or candidates_count > MAX_KEYFRAMES * 1.5
     )
-    return (
-        "coverage" if use_coverage else "conservative",
-        COVERAGE_KEYFRAMES if use_coverage else MAX_KEYFRAMES,
-        groups_per_minute,
-    )
+    strategy = "coverage" if use_coverage else "conservative"
+    base_cap = COVERAGE_KEYFRAMES if use_coverage else MAX_KEYFRAMES
+    return strategy, _dynamic_frame_cap(base_cap, groups_count, candidates_count, duration), groups_per_minute
 
 
 def _select_candidates(

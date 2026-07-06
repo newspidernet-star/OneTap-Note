@@ -3,8 +3,7 @@ from pathlib import Path
 import ffmpeg
 
 from app.services.frame_extractor import (
-    COVERAGE_KEYFRAMES,
-    MAX_KEYFRAMES,
+    HARD_MAX_KEYFRAMES,
     _choose_frame_strategy,
     _select_candidates,
     dedup_frames,
@@ -61,7 +60,7 @@ def test_choose_frame_strategy_switches_to_coverage_for_dense_scenes():
         duration=300,
     )
     assert strategy == "coverage"
-    assert cap == COVERAGE_KEYFRAMES
+    assert cap == 80
     assert groups_per_minute == 24
 
 
@@ -72,7 +71,18 @@ def test_choose_frame_strategy_keeps_conservative_for_sparse_scenes():
         duration=300,
     )
     assert strategy == "conservative"
-    assert cap == MAX_KEYFRAMES
+    assert cap == 8
+
+
+def test_choose_frame_strategy_scales_for_long_many_slide_video():
+    strategy, cap, groups_per_minute = _choose_frame_strategy(
+        groups_count=140,
+        candidates_count=180,
+        duration=3600,
+    )
+    assert strategy == "coverage"
+    assert cap == min(HARD_MAX_KEYFRAMES, int(140 * 0.8))
+    assert groups_per_minute < 3
 
 
 def test_select_candidates_coverage_keeps_time_buckets():
