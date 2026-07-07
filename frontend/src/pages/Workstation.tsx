@@ -470,6 +470,7 @@ export default function Workstation() {
   };
 
   const handleFiles = async (files: FileList | null, appendToCurrent = false) => {
+    if (isProcessing) return;
     if (!files || files.length === 0) return;
     const arr = Array.from(files);
     const baseName = arr[0]?.name.replace(/\.[^.]+$/, "") || "Untitled";
@@ -565,6 +566,7 @@ export default function Workstation() {
   };
 
   const handleAddLink = async (appendToCurrent = false) => {
+    if (isProcessing) return;
     const url = linkInput.trim();
     if (!url) return;
     let sessionId = activeSessionId;
@@ -616,7 +618,7 @@ export default function Workstation() {
   };
 
   const statusText = (s: string) => s === 'done' ? '已完成' : s === 'processing' ? '处理中' : s === 'failed' ? '失败' : (s || '就绪');
-  const isProcessing = uploadMut.isPending || downloadLinkMut.isPending || processMut.isPending || transcribeMut.isPending;
+  const isProcessing = uploadRunning || uploadMut.isPending || downloadLinkMut.isPending || processMut.isPending || transcribeMut.isPending;
   const pipelineError = uploadError || activeSession?.error_message || generateError || undefined;
 
   const uploadStatus: UploadStatus = pipelineError && !matchMut.isPending && !generateMutation.isPending
@@ -745,7 +747,7 @@ export default function Workstation() {
       <div className="flex flex-1 min-h-0 items-stretch max-md:flex-col max-md:overflow-y-auto">
         <aside className="w-[220px] md:w-[200px] lg:w-[220px] bg-card/50 flex flex-col shrink-0 border-r-2 border-border/50 z-10 max-md:w-full max-md:border-r-0 max-md:border-b-2">
           <div className="p-4 space-y-3 overflow-x-hidden">
-            <input ref={fileInputRef} type="file" multiple accept="video/*,audio/*,image/*" className="hidden" onChange={e => handleFiles(e.target.files)} />
+            <input ref={fileInputRef} type="file" multiple accept="video/*,audio/*,image/*" disabled={isProcessing} className="hidden" onChange={e => handleFiles(e.target.files)} />
             <AnimatePresence mode="wait">
               {uploadStatus !== "idle" ? (
                 <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -791,7 +793,7 @@ export default function Workstation() {
                 >
                   <motion.button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadRunning}
+                    disabled={isProcessing}
                     animate={pulseUpload ? {
                       borderColor: ["hsl(var(--border))", "rgba(239,68,68,0.9)", "hsl(var(--border))", "rgba(239,68,68,0.7)", "hsl(var(--border))"],
                       boxShadow: ["0 0 0 0 rgba(239,68,68,0)", "0 0 24px 4px rgba(239,68,68,0.35)", "0 0 0 0 rgba(239,68,68,0)", "0 0 18px 2px rgba(239,68,68,0.25)", "0 0 0 0 rgba(239,68,68,0)"],
@@ -801,10 +803,10 @@ export default function Workstation() {
                     className="w-full rounded-2xl bg-card border-2 border-dashed border-border hover:border-primary/40 transition-colors cursor-pointer group p-5 flex flex-col items-center justify-center gap-3 min-h-[140px] disabled:opacity-60"
                   >
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      {uploadRunning ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <CloudUpload className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />}
+                      {isProcessing ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <CloudUpload className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />}
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-semibold text-foreground">{uploadRunning ? "上传中…" : "上传媒体"}</p>
+                      <p className="text-sm font-semibold text-foreground">{isProcessing ? "处理中…" : "上传媒体"}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">拖拽文件或点击上传</p>
                       <p className="text-[10px] text-muted-foreground/60 mt-1">mp4 · mp3 · m4a · png · jpg</p>
                     </div>
@@ -819,10 +821,10 @@ export default function Workstation() {
                       className="flex items-center gap-2 px-3 py-2.5 max-md:py-2.5 rounded-xl bg-card/80 border hover:border-primary/30 transition-colors group cursor-text"
                     >
                       <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-focus-within:text-primary transition-colors" />
-                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} disabled={uploadRunning || downloadLinkMut.isPending} onKeyDown={e => { if (e.key === 'Enter' && !uploadRunning) handleAddLink(); }} placeholder={uploadRunning || downloadLinkMut.isPending ? "处理中，请稍候..." : "粘贴视频或音频链接..."} className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60 disabled:opacity-50" />
+                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} disabled={isProcessing} onKeyDown={e => { if (e.key === 'Enter' && !isProcessing) handleAddLink(); }} placeholder={isProcessing ? "处理中，请稍候..." : "粘贴视频或音频链接..."} className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60 disabled:opacity-50" />
                     </motion.div>
-                    <button onClick={() => handleAddLink()} disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
-                      {uploadRunning || downloadLinkMut.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : "添加链接"}
+                    <button onClick={() => handleAddLink()} disabled={isProcessing || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
+                      {isProcessing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : "添加链接"}
                     </button>
                   </div>
                 </motion.div>
@@ -932,12 +934,14 @@ export default function Workstation() {
                   type="file"
                   multiple
                   accept="video/*,audio/*,image/*"
+                  disabled={isProcessing}
                   className="hidden"
                   onChange={(e) => handleFiles(e.target.files, true)}
                 />
                 <button
                   onClick={() => setAppendPanelOpen((v) => !v)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                  disabled={isProcessing}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/20 bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   补充资料
@@ -967,10 +971,10 @@ export default function Workstation() {
                       </div>
                       <button
                         onClick={() => appendFileInputRef.current?.click()}
-                        disabled={uploadRunning}
+                        disabled={isProcessing}
                         className="mb-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                       >
-                        {uploadRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
                         上传本地素材
                       </button>
                       <div className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
@@ -979,14 +983,14 @@ export default function Workstation() {
                           type="text"
                           value={linkInput}
                           onChange={(e) => setLinkInput(e.target.value)}
-                          disabled={uploadRunning || downloadLinkMut.isPending}
-                          onKeyDown={(e) => { if (e.key === "Enter" && linkInput.trim()) handleAddLink(true); }}
-                          placeholder="粘贴要补充的视频或音频链接"
+                          disabled={isProcessing}
+                          onKeyDown={(e) => { if (e.key === "Enter" && linkInput.trim() && !isProcessing) handleAddLink(true); }}
+                          placeholder={isProcessing ? "处理中，请稍候..." : "粘贴要补充的视频或音频链接"}
                           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50"
                         />
                         <button
                           onClick={() => handleAddLink(true)}
-                          disabled={uploadRunning || downloadLinkMut.isPending || !linkInput.trim()}
+                          disabled={isProcessing || !linkInput.trim()}
                           className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-40"
                         >
                           添加
