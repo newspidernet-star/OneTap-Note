@@ -7,7 +7,7 @@ import { getFriendlyProgressMessage } from "@/lib/progress-copy";
 
 export type SummaryCTAState = "idle" | "loading" | "error" | "generated";
 
-const stages = ["拿到素材", "准备", "听写", "理清内容", "写笔记", "检查"];
+const stages = ["获取素材", "解析内容", "语音转写", "梳理脉络", "生成笔记", "核对细节"];
 
 interface SummaryHeroCardProps {
   state?: SummaryCTAState;

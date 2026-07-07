@@ -21,7 +21,7 @@ const stageMessages: Record<string, string[]> = {
     "正在核对数字、清单和关键细节…",
     "快好了，正在做最后一遍检查…",
   ],
-  finalize: ["正在为你的笔记起一个不水的标题…", "马上就好…"],
+  finalize: ["正在为这篇笔记提炼一个准确的标题…", "正在收好最后几个细节…"],
 };
 
 export function getFriendlyProgressMessage(progress: ProcessingProgress) {
