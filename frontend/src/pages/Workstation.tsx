@@ -720,7 +720,7 @@ export default function Workstation() {
           />
         </div>
 
-        <div className={`flex items-center gap-3 ${isDesktop ? 'desktop-no-drag' : ''}`}>
+        <div className={`flex items-center gap-3 max-md:gap-1.5 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-xs max-md:hidden">
             {isProcessing ? <Loader2 className="w-3 h-3 animate-spin text-amber-500" /> :
               activeSession?.status === 'done' ? <span className="w-2 h-2 rounded-full bg-green-500" /> :
@@ -740,17 +740,19 @@ export default function Workstation() {
                 setCreatingSession(false);
               }
             }}
-            className="md:hidden p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-50"
+            className="md:hidden inline-flex h-8 items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2.5 text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
             title="新建会话"
+            aria-label="新建会话"
           >
             {creatingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5" />}
+            <span className="text-xs font-semibold">新建</span>
           </button>
           <button onClick={() => setShowMobileMenu(true)} className="md:hidden p-1.5 hover:bg-white/10 rounded-md">
             <Menu className="w-5 h-5" />
           </button>
           <button onClick={() => setTimelineVisible(true)} className="md:hidden p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex items-center gap-1.5">
             <Film className="w-4 h-4" />
-            <span className="text-xs font-medium">时间线</span>
+            <span className="text-xs font-medium max-sm:hidden">时间线</span>
           </button>
           <button onClick={() => setIsDark(d => !d)} className="relative w-14 h-7 rounded-full border border-border bg-muted transition-colors hover:border-primary/30">
             <motion.div
