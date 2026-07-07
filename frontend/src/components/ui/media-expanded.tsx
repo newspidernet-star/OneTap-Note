@@ -441,17 +441,7 @@ export default function MediaExpanded({
                       {/* pickMode 时的操作按钮 + 标签 */}
                       {pickMode && (
                         <>
-                          <button
-                            onClick={addCurrentFrame}
-                            disabled={isProcessing}
-                            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">标记当前帧</span>
-                            <span className="sm:hidden">标记</span>
-                          </button>
-
-                          {/* 标签区 — flex-1 min-w-0 内部滚动，不撑大外层容器 */}
+                          {/* 标签区 — 在标记当前帧左边，flex-1 min-w-0 内部滚动，不撑大外层容器 */}
                           <div
                             ref={tagsScrollRef}
                             className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide"
@@ -482,6 +472,17 @@ export default function MediaExpanded({
                               </span>
                             ))}
                           </div>
+
+                          {/* 标记当前帧 — 紧跟标签区右边，位置在 ? 和清空之间 */}
+                          <button
+                            onClick={addCurrentFrame}
+                            disabled={isProcessing}
+                            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">标记当前帧</span>
+                            <span className="sm:hidden">标记</span>
+                          </button>
 
                           {pickedFrames.length > 0 && (
                             <button
