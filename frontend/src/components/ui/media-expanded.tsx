@@ -2,10 +2,24 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookmarkPlus, HelpCircle, Loader2, Plus, Trash2, Wand2, X } from "lucide-react";
+import {
+  BookmarkPlus,
+  HelpCircle,
+  Loader2,
+  Maximize2,
+  Pause,
+  Play,
+  Plus,
+  Trash2,
+  Volume2,
+  VolumeX,
+  Wand2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { useCaptureFramesBatch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -48,12 +62,24 @@ export default function MediaExpanded({
   const canCapture = !!(isVideo && sessionId && materialId != null);
   const expandedMediaRef = useRef<MediaElement | null>(null);
   const wasPlayingRef = useRef(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const tagsScrollRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [pickMode, setPickMode] = useState(false);
   const [pickedFrames, setPickedFrames] = useState<number[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(100);
+  const [prevVolume, setPrevVolume] = useState(100);
   const batchMut = useCaptureFramesBatch();
 
+  const isProcessing = batchMut.isPending;
+  const hasDuration = duration > 0 && Number.isFinite(duration);
+  const progressPercent = hasDuration ? (currentTime / duration) * 100 : 0;
+
+  // ── ESC / body scroll lock ──────────────────────────────────────────
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleClose();
@@ -68,6 +94,7 @@ export default function MediaExpanded({
     };
   }, [isOpen]);
 
+  // ── Sync from source media on open ──────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const source = sourceMediaRef?.current;
@@ -77,10 +104,21 @@ export default function MediaExpanded({
       wasPlayingRef.current = !source.paused;
       source.pause();
       if (Number.isFinite(source.currentTime)) expanded.currentTime = source.currentTime;
+      // Sync volume
+      expanded.volume = source.volume;
+      setVolume(Math.round(source.volume * 100));
       if (wasPlayingRef.current && expanded.paused) void expanded.play();
     } catch {}
   }, [isOpen, sourceMediaRef]);
 
+  // ── Auto-scroll tags to right when new frame added ──────────────────
+  useEffect(() => {
+    if (tagsScrollRef.current) {
+      tagsScrollRef.current.scrollLeft = tagsScrollRef.current.scrollWidth;
+    }
+  }, [pickedFrames]);
+
+  // ── Sync state from media events ────────────────────────────────────
   const syncTime = () => {
     const media = expandedMediaRef.current;
     if (!media) return;
@@ -88,20 +126,94 @@ export default function MediaExpanded({
     setDuration(Number.isFinite(media.duration) ? media.duration : 0);
   };
 
+  const syncVolume = () => {
+    const media = expandedMediaRef.current;
+    if (!media) return;
+    setVolume(Math.round(media.volume * 100));
+  };
+
+  // ── Close handler — preserves time, volume, play state ──────────────
   const handleClose = () => {
     const source = sourceMediaRef?.current;
     const expanded = expandedMediaRef.current;
-    if (source && expanded && Number.isFinite(expanded.currentTime)) {
+    if (source && expanded) {
       try {
         expanded.pause();
-        source.currentTime = expanded.currentTime;
+        if (Number.isFinite(expanded.currentTime)) source.currentTime = expanded.currentTime;
+        source.volume = expanded.volume;
         if (wasPlayingRef.current) void source.play();
       } catch {}
     }
     onClose();
   };
 
+  // ── Play / pause ────────────────────────────────────────────────────
+  const togglePlay = () => {
+    const media = expandedMediaRef.current;
+    if (!media) return;
+    if (media.paused) void media.play();
+    else media.pause();
+  };
+
+  // ── Volume / mute ───────────────────────────────────────────────────
+  const handleVolumeChange = (v: number) => {
+    setVolume(v);
+    if (v > 0) setPrevVolume(v);
+    const media = expandedMediaRef.current;
+    if (media) media.volume = v / 100;
+  };
+
+  const toggleMute = () => {
+    if (volume > 0) {
+      setPrevVolume(volume);
+      setVolume(0);
+      const media = expandedMediaRef.current;
+      if (media) media.volume = 0;
+    } else {
+      const v = prevVolume || 100;
+      setVolume(v);
+      const media = expandedMediaRef.current;
+      if (media) media.volume = v / 100;
+    }
+  };
+
+  // ── Seek from pointer position ──────────────────────────────────────
+  const seekFromClientX = (clientX: number) => {
+    if (!hasDuration) return;
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const media = expandedMediaRef.current;
+    if (media) media.currentTime = ratio * duration;
+  };
+
+  const onTrackPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    draggingRef.current = true;
+    seekFromClientX(e.clientX);
+    const onMove = (ev: PointerEvent) => {
+      if (draggingRef.current) seekFromClientX(ev.clientX);
+    };
+    const onUp = () => {
+      draggingRef.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const seekToTimestamp = (ts: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const media = expandedMediaRef.current;
+    if (!media || !hasDuration) return;
+    media.currentTime = ts;
+  };
+
+  // ── Frame picking ───────────────────────────────────────────────────
   const addCurrentFrame = () => {
+    if (isProcessing) return;
     const key = Math.round(currentTime * 100) / 100;
     setPickedFrames((prev) => {
       if (prev.some((t) => Math.abs(t - key) < 0.05)) {
@@ -113,11 +225,17 @@ export default function MediaExpanded({
   };
 
   const removeFrame = (ts: number) => {
+    if (isProcessing) return;
     setPickedFrames((prev) => prev.filter((t) => Math.abs(t - ts) > 0.001));
   };
 
+  const clearFrames = () => {
+    if (isProcessing) return;
+    setPickedFrames([]);
+  };
+
   const processPickedFrames = () => {
-    if (!canCapture || pickedFrames.length === 0) return;
+    if (!canCapture || pickedFrames.length === 0 || isProcessing) return;
     batchMut.mutate(
       { sessionId: sessionId!, materialId: materialId!, timestamps: pickedFrames },
       {
@@ -141,6 +259,7 @@ export default function MediaExpanded({
     );
   };
 
+  // ── Render ──────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
@@ -152,6 +271,7 @@ export default function MediaExpanded({
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-6"
           onClick={handleClose}
         >
+          {/* Close button (top-right) */}
           <button
             onClick={handleClose}
             className="absolute right-4 top-4 z-20 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-white/20"
@@ -160,23 +280,28 @@ export default function MediaExpanded({
             <X className="h-6 w-6" />
           </button>
 
-          <div className="relative max-h-full max-w-full overflow-hidden rounded-xl bg-black" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="relative max-h-full max-w-full overflow-hidden rounded-xl bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isVideo && (
               <video
                 ref={expandedMediaRef as React.RefObject<HTMLVideoElement>}
                 src={src}
                 playsInline
-                controls={!pickMode}
                 onLoadedMetadata={syncTime}
                 onTimeUpdate={syncTime}
                 onSeeking={syncTime}
                 onSeeked={syncTime}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onVolumeChange={syncVolume}
                 className="max-h-[calc(100vh-3rem)] max-w-[calc(100vw-1.5rem)] object-contain sm:max-w-[calc(100vw-3rem)]"
               />
             )}
 
             {isImage && (
-              <img src={src} alt={title || "media"} className="max-h-[calc(100vh-3rem)] max-w-[calc(100vw-3rem)] object-contain" />
+              <img src={src} alt={title || "media"} className="max-h-[calc(100vh-3rem)] max-w-[calc(100vw-1.5rem)] object-contain" />
             )}
 
             {isAudio && (
@@ -185,80 +310,201 @@ export default function MediaExpanded({
               </div>
             )}
 
-            {canCapture && (
-              <div className="absolute inset-x-2 bottom-2 z-10 max-h-[42vh] overflow-y-auto rounded-2xl bg-black/75 p-2 text-white shadow-2xl backdrop-blur sm:inset-x-3 sm:bottom-3">
-                <div className="grid grid-cols-[auto_auto_1fr] items-center gap-2 max-sm:grid-cols-[auto_1fr]">
+            {/* ── Custom control bar for video ─────────────────────── */}
+            {isVideo && (
+              <div className="absolute inset-x-0 bottom-0 z-10 max-h-[30vh] overflow-y-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pb-3 pt-6 text-white sm:px-4">
+                {/* Progress bar — full width, min 24px click height */}
+                <div
+                  ref={trackRef}
+                  onPointerDown={onTrackPointerDown}
+                  className="relative h-6 w-full cursor-pointer touch-none"
+                >
+                  {/* Track background */}
+                  <div className="absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 rounded-full bg-white/20" />
+                  {/* Filled progress */}
+                  <div
+                    className="absolute top-1/2 left-0 h-1.5 -translate-y-1/2 rounded-full bg-white/70"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                  {/* Playhead handle */}
+                  {hasDuration && (
+                    <div
+                      className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md"
+                      style={{ left: `${progressPercent}%` }}
+                    />
+                  )}
+                  {/* Yellow markers */}
+                  {hasDuration &&
+                    pickedFrames.map((ts) => (
+                      <button
+                        key={ts}
+                        onClick={(e) => seekToTimestamp(ts, e)}
+                        className="absolute top-1/2 z-10 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-400 transition-colors hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300/50"
+                        style={{ left: `${Math.min(100, Math.max(0, (ts / duration) * 100))}%` }}
+                        title={formatTime(ts)}
+                        aria-label={`跳转到 ${formatTime(ts)}`}
+                      />
+                    ))}
+                </div>
+
+                {/* Buttons row */}
+                <div className="mt-1.5 flex items-center gap-2 sm:gap-3">
+                  {/* Play / Pause */}
                   <button
-                    onClick={() => setPickMode((v) => !v)}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors hover:bg-white/10",
-                      pickMode && "bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/50"
-                    )}
+                    onClick={togglePlay}
+                    className="grid h-8 w-8 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+                    aria-label={isPlaying ? "暂停" : "播放"}
                   >
-                    <BookmarkPlus className="h-4 w-4" />
-                    {pickMode ? "选帧中" : "选帧"}
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </button>
 
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button className="grid h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white" aria-label="选帧说明">
-                        <HelpCircle className="h-4 w-4" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent side="top" align="start" className="w-72 text-sm">
-                      <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
-                        <li>进入选帧模式</li>
-                        <li>拖到想补充的画面</li>
-                        <li>标记当前帧，可选多个</li>
-                        <li>处理全部后自动加入时间线</li>
-                        <li>完成后自动重新生成知识笔记</li>
-                      </ol>
-                    </PopoverContent>
-                  </Popover>
+                  {/* Mute */}
+                  <button
+                    onClick={toggleMute}
+                    className="grid h-8 w-8 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+                    aria-label={volume > 0 ? "静音" : "取消静音"}
+                  >
+                    {volume > 0 ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
 
-                  <span className="min-w-[82px] justify-self-end text-xs font-mono text-white/80">
+                  {/* Volume slider */}
+                  <Slider
+                    value={[volume]}
+                    onValueChange={(v) => handleVolumeChange(v[0])}
+                    max={100}
+                    step={1}
+                    className="w-16 sm:w-24"
+                    aria-label="音量"
+                  />
+
+                  {/* Time display */}
+                  <span className="text-xs font-mono text-white/80 whitespace-nowrap">
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  <div className="relative h-2 min-w-[120px] rounded-full bg-white/20 max-sm:col-span-2">
-                    <div className="h-full rounded-full bg-white/70" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
-                    {duration > 0 && pickedFrames.map((ts) => (
-                      <i
-                        key={ts}
-                        className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-400"
-                        style={{ left: `${Math.min(100, Math.max(0, (ts / duration) * 100))}%` }}
-                      />
-                    ))}
+                  {/* Right-aligned controls */}
+                  <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+                    {/* Pick mode toggle (only when canCapture) */}
+                    {canCapture && (
+                      <button
+                        onClick={() => setPickMode((v) => !v)}
+                        className={cn(
+                          "inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors hover:bg-white/10",
+                          pickMode && "bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/50"
+                        )}
+                      >
+                        <BookmarkPlus className="h-4 w-4" />
+                        <span className="hidden sm:inline">{pickMode ? "选帧中" : "选帧"}</span>
+                      </button>
+                    )}
+
+                    {/* Help popover (only when canCapture) */}
+                    {canCapture && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="grid h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+                            aria-label="选帧说明"
+                          >
+                            <HelpCircle className="h-4 w-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent side="top" align="end" className="w-72 text-sm">
+                          <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
+                            <li>进入选帧模式</li>
+                            <li>拖到想补充的画面</li>
+                            <li>标记当前帧，可选多个</li>
+                            <li>处理全部后自动加入时间线</li>
+                            <li>完成后自动重新生成知识笔记</li>
+                          </ol>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+
+                    {/* Exit fullscreen */}
+                    <button
+                      onClick={handleClose}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+                      aria-label="退出全屏"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5 rotate-180" />
+                      <span className="hidden sm:inline">退出全屏</span>
+                    </button>
                   </div>
                 </div>
 
-                {pickMode && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2 max-sm:flex-col max-sm:items-stretch">
-                    <button onClick={addCurrentFrame} className="inline-flex h-8 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white hover:bg-amber-600">
-                      <Plus className="h-3.5 w-3.5" />
-                      标记当前帧
-                    </button>
-                    {pickedFrames.map((ts) => (
-                      <span key={ts} className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-1 text-xs font-mono text-amber-100">
-                        {formatTime(ts)}
-                        <button onClick={() => removeFrame(ts)} className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10" aria-label={`移除 ${formatTime(ts)}`}>
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:justify-between">
-                      {pickedFrames.length > 0 && (
-                        <button onClick={() => setPickedFrames([])} className="text-xs text-white/60 hover:text-white">清空</button>
-                      )}
+                {/* ── Pick mode area (only when canCapture && pickMode) ── */}
+                {canCapture && pickMode && (
+                  <div className="mt-2 border-t border-white/10 pt-2">
+                    {/* Operations row — fixed left & right */}
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={processPickedFrames}
-                        disabled={pickedFrames.length === 0 || batchMut.isPending}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-50"
+                        onClick={addCurrentFrame}
+                        disabled={isProcessing}
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {batchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                        处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}
+                        <Plus className="h-3.5 w-3.5" />
+                        标记当前帧
                       </button>
+                      <span className="shrink-0 text-xs font-medium text-white/70 whitespace-nowrap">
+                        已选 {pickedFrames.length} 帧
+                      </span>
+
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        {pickedFrames.length > 0 && (
+                          <button
+                            onClick={clearFrames}
+                            disabled={isProcessing}
+                            className="text-xs text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            清空
+                          </button>
+                        )}
+                        <button
+                          onClick={processPickedFrames}
+                          disabled={pickedFrames.length === 0 || isProcessing}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                          处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Timestamp tags — horizontal scroll, no wrap */}
+                    {pickedFrames.length > 0 && (
+                      <div
+                        ref={tagsScrollRef}
+                        className="mt-1.5 flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide"
+                        style={{ minHeight: "32px" }}
+                      >
+                        {pickedFrames.map((ts) => (
+                          <span
+                            key={ts}
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2 py-1 text-xs font-mono text-amber-100"
+                          >
+                            <button
+                              onClick={(e) => seekToTimestamp(ts, e)}
+                              className="hover:text-white"
+                              title={`跳转到 ${formatTime(ts)}`}
+                            >
+                              {formatTime(ts)}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFrame(ts);
+                              }}
+                              disabled={isProcessing}
+                              className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                              aria-label={`移除 ${formatTime(ts)}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
