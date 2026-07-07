@@ -362,81 +362,96 @@ export default function MediaExpanded({
                     ))}
                 </div>
 
-                {/* ── Control bar — pick buttons pinned right via absolute positioning ── */}
-                <div className="relative mt-1.5">
-                  {/* Main row: transport (left) + 选帧/问号 (right via ml-auto) + tags */}
-                  {/* When pickMode is on, leave space on the right for the pinned pick buttons */}
-                  <div className={cn("flex items-center gap-1.5 sm:gap-2", pickMode && "pr-[200px] sm:pr-[260px]")}>
-                    {/* Left: transport controls */}
-                    <button
-                      onClick={togglePlay}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
-                      aria-label={isPlaying ? "暂停" : "播放"}
-                    >
-                      {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    </button>
-                    <button
-                      onClick={toggleMute}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
-                      aria-label={volume > 0 ? "静音" : "取消静音"}
-                    >
-                      {volume > 0 ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                    </button>
-                    <Slider
-                      value={[volume]}
-                      onValueChange={(v) => handleVolumeChange(v[0])}
-                      max={100}
-                      step={1}
-                      className="w-16 shrink-0 sm:w-24"
-                      aria-label="音量"
-                    />
-                    <span className="shrink-0 text-xs font-mono text-white/80 whitespace-nowrap">
-                      {formatTime(currentTime)} / {formatTime(duration)}
-                    </span>
+                {/* ── Control bar ──
+                   右侧容器用 max-w 限制宽度 + overflow hidden，内部 flex 布局。
+                   标签区 flex-1 min-w-0 overflow-x-auto 内部滚动，不撑大容器。
+                   所以标记当前帧/处理全部位置恒定。 */}
+                <div className="mt-1.5 flex h-8 items-center gap-1.5 sm:gap-2">
+                  {/* Left: transport controls */}
+                  <button
+                    onClick={togglePlay}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+                    aria-label={isPlaying ? "暂停" : "播放"}
+                  >
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={toggleMute}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+                    aria-label={volume > 0 ? "静音" : "取消静音"}
+                  >
+                    {volume > 0 ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
+                  <Slider
+                    value={[volume]}
+                    onValueChange={(v) => handleVolumeChange(v[0])}
+                    max={100}
+                    step={1}
+                    className="w-16 shrink-0 sm:w-24"
+                    aria-label="音量"
+                  />
+                  <span className="shrink-0 text-xs font-mono text-white/80 whitespace-nowrap">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
 
-                    {/* 选帧 toggle + help — pushed right, but width is constant so they don't move */}
-                    {canCapture && (
-                      <>
-                        <button
-                          onClick={() => setPickMode((v) => !v)}
-                          className={cn(
-                            "ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors hover:bg-white/10",
-                            pickMode && "bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/50",
-                            !pickMode && "text-white/80"
-                          )}
-                        >
-                          <BookmarkPlus className="h-4 w-4" />
-                          <span className="hidden sm:inline">{pickMode ? "选帧中" : "选帧"}</span>
-                        </button>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                              aria-label="选帧说明"
-                            >
-                              <HelpCircle className="h-4 w-4" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            side="top"
-                            align="end"
-                            sideOffset={8}
-                            className="z-[120] w-72 text-sm"
+                  {/* Right cluster — max-w 限制宽度，内部 overflow hidden，按钮位置稳定 */}
+                  {canCapture && (
+                    <div className="ml-auto flex h-8 max-w-[55%] items-center gap-1.5 overflow-hidden sm:gap-2">
+                      {/* 选帧 toggle */}
+                      <button
+                        onClick={() => setPickMode((v) => !v)}
+                        className={cn(
+                          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors hover:bg-white/10",
+                          pickMode && "bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/50",
+                          !pickMode && "text-white/80"
+                        )}
+                      >
+                        <BookmarkPlus className="h-4 w-4" />
+                        <span className="hidden sm:inline">{pickMode ? "选帧中" : "选帧"}</span>
+                      </button>
+
+                      {/* Help popover */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                            aria-label="选帧说明"
                           >
-                            <p className="mb-1.5 font-semibold text-foreground">选帧再处理 · 使用说明</p>
-                            <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
-                              <li>点 选帧 进入选帧模式</li>
-                              <li>拖动播放头到要补的关键帧位置</li>
-                              <li>点 标记当前帧 加入待处理列表（可重复多次）</li>
-                              <li>点 处理全部 批量抽帧 + OCR，自动加入时间线</li>
-                              <li>完成后可重新生成知识笔记，让新帧参与引用</li>
-                            </ol>
-                            <p className="mt-2 text-xs text-muted-foreground/70">适用于自动抽帧漏掉的 PPT 页 / 关键画面</p>
-                          </PopoverContent>
-                        </Popover>
+                            <HelpCircle className="h-4 w-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side="top"
+                          align="end"
+                          sideOffset={8}
+                          className="z-[120] w-72 text-sm"
+                        >
+                          <p className="mb-1.5 font-semibold text-foreground">选帧再处理 · 使用说明</p>
+                          <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
+                            <li>点 选帧 进入选帧模式</li>
+                            <li>拖动播放头到要补的关键帧位置</li>
+                            <li>点 标记当前帧 加入待处理列表（可重复多次）</li>
+                            <li>点 处理全部 批量抽帧 + OCR，自动加入时间线</li>
+                            <li>完成后可重新生成知识笔记，让新帧参与引用</li>
+                          </ol>
+                          <p className="mt-2 text-xs text-muted-foreground/70">适用于自动抽帧漏掉的 PPT 页 / 关键画面</p>
+                        </PopoverContent>
+                      </Popover>
 
-                        {/* Timestamp tags — flex-1 fills space between ? and the pinned pick buttons */}
-                        {pickMode && (
+                      {/* pickMode 时的操作按钮 + 标签 */}
+                      {pickMode && (
+                        <>
+                          <button
+                            onClick={addCurrentFrame}
+                            disabled={isProcessing}
+                            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">标记当前帧</span>
+                            <span className="sm:hidden">标记</span>
+                          </button>
+
+                          {/* 标签区 — flex-1 min-w-0 内部滚动，不撑大外层容器 */}
                           <div
                             ref={tagsScrollRef}
                             className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide"
@@ -467,69 +482,51 @@ export default function MediaExpanded({
                               </span>
                             ))}
                           </div>
-                        )}
-                      </>
-                    )}
 
-                    {/* Exit fullscreen when no canCapture */}
-                    {!canCapture && (
-                      <button
-                        onClick={handleClose}
-                        className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
-                        aria-label="退出全屏"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5 rotate-180" />
-                        <span className="hidden sm:inline">退出全屏</span>
-                      </button>
-                    )}
-                  </div>
+                          {pickedFrames.length > 0 && (
+                            <button
+                              onClick={clearFrames}
+                              disabled={isProcessing}
+                              className="shrink-0 text-xs text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              清空
+                            </button>
+                          )}
+                          <button
+                            onClick={processPickedFrames}
+                            disabled={pickedFrames.length === 0 || isProcessing}
+                            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                            <span className="hidden sm:inline">处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
+                            <span className="sm:hidden">处理{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
+                          </button>
+                        </>
+                      )}
 
-                  {/* Pick action buttons — absolutely pinned to the right edge.
-                      They never participate in the flex flow, so tags can't push them. */}
-                  {canCapture && pickMode && (
-                    <div className="absolute right-0 top-0 flex h-full items-center gap-1.5 sm:gap-2">
-                      <button
-                        onClick={addCurrentFrame}
-                        disabled={isProcessing}
-                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">标记当前帧</span>
-                        <span className="sm:hidden">标记</span>
-                      </button>
-                      {pickedFrames.length > 0 && (
+                      {!pickMode && (
                         <button
-                          onClick={clearFrames}
-                          disabled={isProcessing}
-                          className="shrink-0 text-xs text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                          onClick={handleClose}
+                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+                          aria-label="退出全屏"
                         >
-                          清空
+                          <Maximize2 className="h-3.5 w-3.5 rotate-180" />
+                          <span className="hidden sm:inline">退出全屏</span>
                         </button>
                       )}
-                      <button
-                        onClick={processPickedFrames}
-                        disabled={pickedFrames.length === 0 || isProcessing}
-                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                        <span className="hidden sm:inline">处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
-                        <span className="sm:hidden">处理{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
-                      </button>
                     </div>
                   )}
 
-                  {/* Exit fullscreen when pickMode is off + canCapture — pinned right */}
-                  {canCapture && !pickMode && (
-                    <div className="absolute right-0 top-0 flex h-full items-center">
-                      <button
-                        onClick={handleClose}
-                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
-                        aria-label="退出全屏"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5 rotate-180" />
-                        <span className="hidden sm:inline">退出全屏</span>
-                      </button>
-                    </div>
+                  {/* Exit fullscreen when no canCapture */}
+                  {!canCapture && (
+                    <button
+                      onClick={handleClose}
+                      className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+                      aria-label="退出全屏"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5 rotate-180" />
+                      <span className="hidden sm:inline">退出全屏</span>
+                    </button>
                   )}
                 </div>
               </div>
