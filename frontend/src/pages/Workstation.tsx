@@ -160,7 +160,8 @@ export default function Workstation() {
   useEffect(() => {
     if (!isDesktop) return;
     const unsubscribe = (window as any).smartScribe?.onCloseRequest?.(() => {
-      setShowDesktopClosePrompt(true);
+      window.dispatchEvent(new Event("smart-scribe-close-overlays"));
+      requestAnimationFrame(() => setShowDesktopClosePrompt(true));
     });
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
@@ -1406,7 +1407,7 @@ export default function Workstation() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
             onClick={() => handleDesktopCloseAction("cancel")}
           >
             <motion.div

@@ -99,12 +99,15 @@ export default function MediaExpanded({
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleClose();
     };
+    const handleDesktopClose = () => closeForDesktopPrompt();
     if (isOpen) {
       window.addEventListener("keydown", handleEsc);
+      window.addEventListener("smart-scribe-close-overlays", handleDesktopClose);
       document.body.style.overflow = "hidden";
     }
     return () => {
       window.removeEventListener("keydown", handleEsc);
+      window.removeEventListener("smart-scribe-close-overlays", handleDesktopClose);
       document.body.style.overflow = "";
     };
   }, [isOpen]);
@@ -157,6 +160,20 @@ export default function MediaExpanded({
         if (Number.isFinite(expanded.currentTime)) source.currentTime = expanded.currentTime;
         source.volume = expanded.volume;
         if (wasPlayingRef.current) void source.play();
+      } catch {}
+    }
+    onClose();
+  };
+
+  const closeForDesktopPrompt = () => {
+    const source = sourceMediaRef?.current;
+    const expanded = expandedMediaRef.current;
+    if (source && expanded) {
+      try {
+        expanded.pause();
+        source.pause();
+        if (Number.isFinite(expanded.currentTime)) source.currentTime = expanded.currentTime;
+        source.volume = expanded.volume;
       } catch {}
     }
     onClose();
@@ -456,17 +473,7 @@ export default function MediaExpanded({
 
                 {/* Frame actions use their own row so controls never move as tags grow. */}
                 {canCapture && pickMode && (
-                  <div className="mt-1 grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1.5 border-t border-white/10 pt-2 sm:gap-2">
-                    <button
-                      onClick={addCurrentFrame}
-                      disabled={isProcessing}
-                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">标记当前帧</span>
-                      <span className="sm:hidden">标记</span>
-                    </button>
-
+                  <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-1.5 border-t border-white/10 pt-2 sm:gap-2">
                     <div
                       ref={tagsScrollRef}
                       className="flex h-8 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide"
@@ -501,6 +508,16 @@ export default function MediaExpanded({
                         </span>
                       ))}
                     </div>
+
+                    <button
+                      onClick={addCurrentFrame}
+                      disabled={isProcessing}
+                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">标记当前帧</span>
+                      <span className="sm:hidden">标记</span>
+                    </button>
 
                     <button
                       onClick={clearFrames}
