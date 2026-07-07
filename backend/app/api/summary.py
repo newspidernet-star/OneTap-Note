@@ -13,7 +13,7 @@ from app.schemas.summary import (
 )
 from app.services.matcher import match_evidence
 from app.services.summarizer import (
-    clear_summary, detect_unused_blocks, generate_summary, save_summary, verify_citations,
+    clear_summary, detect_unused_blocks, generate_summary, review_summary_completeness, save_summary, verify_citations,
 )
 from app.services.title_generator import generate_title
 
@@ -95,6 +95,22 @@ def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db
         t0 = time.time()
         result = generate_summary(session_id, db, priority_material_ids=(body.priority_material_ids if body else []))
         logger.info(f"[AI] session {session_id}: DeepSeek done, {time.time()-t0:.2f}s")
+        review_started = time.time()
+        try:
+            result = review_summary_completeness(result, session_id, db)
+            logger.info(
+                "[AI-REVIEW] session %s: completeness review done, revised=%s issues=%d, %.2fs",
+                session_id,
+                result.get("_review_revised", False),
+                len(result.get("_review_issues", [])),
+                time.time() - review_started,
+            )
+        except Exception as review_error:
+            logger.warning(
+                "[AI-REVIEW] session %s: review failed, keeping initial note: %s",
+                session_id,
+                review_error,
+            )
         t1 = time.time()
         verification = verify_citations(result, session_id, db)
         result["_citation_valid"] = verification["valid"]

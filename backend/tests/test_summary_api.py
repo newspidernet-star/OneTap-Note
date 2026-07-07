@@ -67,6 +67,7 @@ async def test_match_and_generate_and_result(client, monkeypatch):
     monkeypatch.setattr("app.api.summary.match_evidence", fake_match)
     monkeypatch.setattr("app.api.summary.clear_summary", fake_clear)
     monkeypatch.setattr("app.api.summary.generate_summary", fake_generate)
+    monkeypatch.setattr("app.api.summary.review_summary_completeness", lambda result, sid, db: result)
     monkeypatch.setattr("app.api.summary.verify_citations", fake_verify)
     monkeypatch.setattr("app.api.summary.save_summary", fake_save)
 
@@ -120,6 +121,7 @@ async def test_verify_endpoint(client, monkeypatch):
 
     monkeypatch.setattr("app.api.summary.clear_summary", fake_clear)
     monkeypatch.setattr("app.api.summary.generate_summary", fake_generate)
+    monkeypatch.setattr("app.api.summary.review_summary_completeness", lambda result, sid, db: result)
     monkeypatch.setattr("app.api.summary.verify_citations", fake_verify)
     monkeypatch.setattr("app.api.summary.detect_unused_blocks", fake_detect)
     monkeypatch.setattr("app.api.summary.save_summary", fake_save)
@@ -193,6 +195,7 @@ async def test_generate_updates_title_on_first_summary_only(client, monkeypatch)
 
     monkeypatch.setattr("app.api.summary.clear_summary", fake_clear)
     monkeypatch.setattr("app.api.summary.generate_summary", fake_generate)
+    monkeypatch.setattr("app.api.summary.review_summary_completeness", lambda result, sid, db: result)
     monkeypatch.setattr("app.api.summary.verify_citations", fake_verify)
     monkeypatch.setattr("app.api.summary.save_summary", fake_save)
     monkeypatch.setattr("app.api.summary.generate_title", lambda text, db: "电磁感应")

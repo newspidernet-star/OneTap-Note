@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models import ApiSettings, EvidenceBlock, Match
-from app.services.summarizer import build_prompt, call_deepseek, generate_summary
+from app.services.summarizer import build_prompt, call_deepseek, generate_summary, review_summary_completeness
 
 
 def test_build_prompt():
@@ -102,6 +102,37 @@ def test_generate_summary_integration(monkeypatch, db_session):
 def test_generate_summary_no_blocks(db_session):
     with pytest.raises(ValueError, match="无证据块"):
         generate_summary(999, db_session)
+
+
+def test_completeness_review_merges_revised_note(db_session, monkeypatch):
+    db_session.add(EvidenceBlock(
+        block_id="S001",
+        session_id=1,
+        type="speech",
+        timestamp=0,
+        text="这里有三条建议：第一专注，第二复盘，第三执行。",
+    ))
+    db_session.commit()
+    initial = {
+        "corrected_text": "完整原文",
+        "summary": "## 建议\n\n只有两条。",
+        "key_points": [{"point": "两条建议", "citations": ["S001"]}],
+    }
+    monkeypatch.setattr(
+        "app.services.summarizer._call_deepseek_with_system",
+        lambda prompt, db, system: {
+            "revised": True,
+            "summary": "## 完整清单\n\n1. 专注\n2. 复盘\n3. 执行",
+            "key_points": [{"point": "三条建议", "citations": ["S001"]}],
+            "issues": ["补回第 3 条"],
+        },
+    )
+
+    reviewed = review_summary_completeness(initial, 1, db_session)
+
+    assert reviewed["corrected_text"] == "完整原文"
+    assert "3. 执行" in reviewed["summary"]
+    assert reviewed["_review_revised"] is True
 
 
 def test_summary_cites_video_frame_and_image_blocks(db_session, monkeypatch):
