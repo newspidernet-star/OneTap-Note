@@ -24,6 +24,8 @@ def test_build_prompt():
     assert "0.80" in prompt
     assert "不要按视频顺序复述" in prompt
     assert "正文不显示 S/P 证据 ID" in prompt
+    assert "显式清单必须保真" in prompt
+    assert "全部 N 条" in prompt
 
 
 def test_call_deepseek_mocked(monkeypatch):
