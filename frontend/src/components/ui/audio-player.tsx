@@ -597,11 +597,13 @@ const AudioPlayer = ({
                         </div>
 
                         {pickedFrames.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">
+                          <div className="flex h-[58px] items-start overflow-hidden">
+                            <p className="text-xs text-muted-foreground">
                             拖动播放头到要补帧的位置，点「标记当前帧」加入列表。
-                          </p>
+                            </p>
+                          </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex h-[58px] content-start flex-wrap gap-1.5 overflow-y-auto pr-1">
                             {pickedFrames.map((ts) => (
                               <span
                                 key={ts}

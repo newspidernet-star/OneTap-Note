@@ -300,7 +300,7 @@ export default function MediaExpanded({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-6"
+          className="fixed inset-x-0 bottom-0 top-12 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-6"
           onClick={handleClose}
         >
           {/* Close button (top-right) */}
