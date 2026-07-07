@@ -28,12 +28,9 @@ async def test_process_image_creates_evidence(client, monkeypatch):
     assert evidence.json()[0]["type"] == "image"
 
 
-def test_video_material_creates_video_frame_blocks(db, tmp_path, monkeypatch):
+def test_video_material_skips_automatic_frames_by_default(db, tmp_path, monkeypatch):
     from app.services.pipeline import process_session
     from app.models import Session, Material
-
-    fake = OcrResult(text="sample text for video frame")
-    monkeypatch.setattr("app.services.pipeline.ocr_image", lambda path, db: fake)
 
     session = Session(title="test", status="created", created_at="now", updated_at="now")
     db.add(session)
@@ -73,6 +70,7 @@ def test_video_material_creates_video_frame_blocks(db, tmp_path, monkeypatch):
     db.refresh(material)
 
     assert material.status == "done"
+    assert result.frames_count == 0
+    assert result.ocr_pages_count == 0
     blocks = db.query(EvidenceBlock).filter_by(session_id=session.id).all()
-    assert len(blocks) > 0
-    assert all(b.type == "video_frame" for b in blocks)
+    assert blocks == []

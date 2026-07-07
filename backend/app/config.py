@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     db_url: str = "sqlite:///storage/smart_scribe.db"
     secret_key_file: Path = Path("storage/secret.key")
     ocr_mode: str = "cloud"
+    # 默认走快速语音路径；图片和用户手动选帧仍会 OCR。
+    auto_video_ocr: bool = False
     public_base_url: str = ""
     # 语音转写需要公网回拉音频：auto = 无 public_base_url 时自动起 cloudflared 临时隧道
     # 对应环境变量 SMART_SCRIBE_TUNNEL

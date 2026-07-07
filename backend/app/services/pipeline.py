@@ -5,6 +5,7 @@ import time
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import EvidenceBlock, Material, Transcript, TranscriptSegment
 from app.services.frame_extractor import extract_keyframes
 from app.services.ocr import OcrResult, ocr_batch, ocr_image
@@ -262,7 +263,14 @@ def process_session(session_id: int, db: Session) -> ProcessingResult:
         if m.status != "pending":
             continue
         if m.type == "video":
-            fc, oc, blocks = _process_video(m, db)
+            if get_settings().auto_video_ocr:
+                fc, oc, blocks = _process_video(m, db)
+            else:
+                logger.info(
+                    "[FRAMES] session %s: automatic video OCR skipped (fast mode); manual frame capture remains available",
+                    session_id,
+                )
+                fc, oc, blocks = 0, 0, []
             m.status = "done"
         elif m.type == "image":
             fc, oc, blocks = _process_image(m, db)
