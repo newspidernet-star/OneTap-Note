@@ -1035,7 +1035,7 @@ export default function Workstation() {
             onScroll={(e) => setShowBackToTop(e.currentTarget.scrollTop > 420)}
             className="flex-1 overflow-y-auto px-5 pb-20 pt-4 space-y-4 flex flex-col items-center max-md:overflow-visible"
           >
-            <div id="island-btn">
+            <div id="island-btn" className="w-full max-w-[624px] shrink-0">
             <IslandButton
               status={buttonStatus}
               generable={canGenerate || isMock}
