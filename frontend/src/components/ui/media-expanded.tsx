@@ -394,9 +394,9 @@ export default function MediaExpanded({
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  {/* Right cluster — max-w 限制宽度，内部 overflow hidden，按钮位置稳定 */}
+                  {/* Right cluster — flex-1 自适应宽度，标签区滚动，按钮位置稳定 */}
                   {canCapture && (
-                    <div className="ml-auto flex h-8 max-w-[55%] items-center gap-1.5 overflow-hidden sm:gap-2">
+                    <div className="ml-auto flex h-8 min-w-0 max-w-full flex-1 items-center gap-1.5 overflow-hidden sm:max-w-[80%] sm:gap-2">
                       {/* 选帧 toggle */}
                       <button
                         onClick={() => setPickMode((v) => !v)}
