@@ -362,12 +362,8 @@ export default function MediaExpanded({
                     ))}
                 </div>
 
-                {/* ── Control bar ──
-                   右侧容器用 max-w 限制宽度 + overflow hidden，内部 flex 布局。
-                   标签区 flex-1 min-w-0 overflow-x-auto 内部滚动，不撑大容器。
-                   所以标记当前帧/处理全部位置恒定。 */}
-                <div className="mt-1.5 flex min-h-8 items-center gap-1.5 py-1 sm:gap-2">
-                  {/* Left: transport controls */}
+                {/* Primary controls stay independent from the growing frame list. */}
+                <div className="mt-1.5 flex min-h-10 min-w-0 items-center gap-1.5 py-1 sm:gap-2">
                   <button
                     onClick={togglePlay}
                     className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white transition-colors hover:bg-white/15"
@@ -394,12 +390,8 @@ export default function MediaExpanded({
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  {/* Right cluster — ml-auto 靠右，宽度随内容自适应（max-w-full 不超出行宽）。
-                      标签区 flex-1 min-w-0 内部滚动，标签少时容器窄（选帧靠右），
-                      标签多时容器变宽，到头后标签区出滚动条。 */}
                   {canCapture && (
-                    <div className="ml-auto flex min-h-8 min-w-0 max-w-full items-center gap-1.5 overflow-x-hidden sm:gap-2">
-                      {/* 选帧 toggle */}
+                    <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                       <button
                         onClick={() => setPickMode((v) => !v)}
                         className={cn(
@@ -412,7 +404,6 @@ export default function MediaExpanded({
                         <span className="hidden sm:inline">{pickMode ? "选帧中" : "选帧"}</span>
                       </button>
 
-                      {/* Help popover */}
                       <Popover>
                         <PopoverTrigger asChild>
                           <button
@@ -439,84 +430,14 @@ export default function MediaExpanded({
                           <p className="mt-2 text-xs text-muted-foreground/70">适用于自动抽帧漏掉的 PPT 页 / 关键画面</p>
                         </PopoverContent>
                       </Popover>
-
-                      {/* pickMode 时的操作按钮 + 标签 */}
-                      {pickMode && (
-                        <>
-                          {/* 标签区 — 在标记当前帧左边，flex-1 min-w-0 内部滚动，不撑大外层容器 */}
-                          <div
-                            ref={tagsScrollRef}
-                            className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide"
-                          >
-                            {pickedFrames.map((ts) => (
-                              <span
-                                key={ts}
-                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2 py-1 text-xs font-mono text-amber-100"
-                              >
-                                <button
-                                  onClick={(e) => seekToTimestamp(ts, e)}
-                                  className="hover:text-white"
-                                  title={`跳转到 ${formatTime(ts)}`}
-                                >
-                                  {formatTime(ts)}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeFrame(ts);
-                                  }}
-                                  disabled={isProcessing}
-                                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                                  aria-label={`移除 ${formatTime(ts)}`}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* 标记当前帧 — 紧跟标签区右边，位置在 ? 和清空之间 */}
-                          <button
-                            onClick={addCurrentFrame}
-                            disabled={isProcessing}
-                            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">标记当前帧</span>
-                            <span className="sm:hidden">标记</span>
-                          </button>
-
-                          {pickedFrames.length > 0 && (
-                            <button
-                              onClick={clearFrames}
-                              disabled={isProcessing}
-                              className="shrink-0 text-xs text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              清空
-                            </button>
-                          )}
-                          <button
-                            onClick={processPickedFrames}
-                            disabled={pickedFrames.length === 0 || isProcessing}
-                            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                            <span className="hidden sm:inline">处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
-                            <span className="sm:hidden">处理{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
-                          </button>
-                        </>
-                      )}
-
-                      {!pickMode && (
-                        <button
-                          onClick={handleClose}
-                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
-                          aria-label="退出全屏"
-                        >
-                          <Maximize2 className="h-3.5 w-3.5 rotate-180" />
-                          <span className="hidden sm:inline">退出全屏</span>
-                        </button>
-                      )}
+                      <button
+                        onClick={handleClose}
+                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15"
+                        aria-label="退出全屏"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5 rotate-180" />
+                        <span className="hidden sm:inline">退出全屏</span>
+                      </button>
                     </div>
                   )}
 
@@ -532,6 +453,73 @@ export default function MediaExpanded({
                     </button>
                   )}
                 </div>
+
+                {/* Frame actions use their own row so controls never move as tags grow. */}
+                {canCapture && pickMode && (
+                  <div className="mt-1 grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1.5 border-t border-white/10 pt-2 sm:gap-2">
+                    <button
+                      onClick={addCurrentFrame}
+                      disabled={isProcessing}
+                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-amber-500 px-3 text-xs font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">标记当前帧</span>
+                      <span className="sm:hidden">标记</span>
+                    </button>
+
+                    <div
+                      ref={tagsScrollRef}
+                      className="flex h-8 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide"
+                      aria-label={`已选 ${pickedFrames.length} 帧`}
+                    >
+                      {pickedFrames.length === 0 && (
+                        <span className="whitespace-nowrap px-1 text-xs text-white/45">已选 0 帧</span>
+                      )}
+                      {pickedFrames.map((ts) => (
+                        <span
+                          key={ts}
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2 text-xs font-mono text-amber-100"
+                        >
+                          <button
+                            onClick={(e) => seekToTimestamp(ts, e)}
+                            className="hover:text-white"
+                            title={`跳转到 ${formatTime(ts)}`}
+                          >
+                            {formatTime(ts)}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFrame(ts);
+                            }}
+                            disabled={isProcessing}
+                            className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={`移除 ${formatTime(ts)}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={clearFrames}
+                      disabled={pickedFrames.length === 0 || isProcessing}
+                      className="h-8 shrink-0 px-1 text-xs text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      清空
+                    </button>
+                    <button
+                      onClick={processPickedFrames}
+                      disabled={pickedFrames.length === 0 || isProcessing}
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                      <span className="hidden sm:inline">处理全部{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
+                      <span className="sm:hidden">处理{pickedFrames.length ? `(${pickedFrames.length})` : ""}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
