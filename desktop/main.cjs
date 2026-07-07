@@ -299,11 +299,21 @@ function showMainWindow() {
   if (!mainWindow) {
     createWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadURL(BACKEND_URL);
+      loadAppWindow();
     }
   } else {
     mainWindow.show();
     mainWindow.focus();
+  }
+}
+
+async function loadAppWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  // The backend serves a rebuilt Vite bundle at the same localhost URL.
+  // Clear Chromium's cache so the desktop shell never keeps an old index.
+  await mainWindow.webContents.session.clearCache();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.loadURL(BACKEND_URL);
   }
 }
 
@@ -358,7 +368,7 @@ app.whenReady().then(async () => {
     // Backend is alive — go straight to the app
     await sleep(Math.max(0, MIN_SPLASH_MS - (Date.now() - splashStartedAt)));
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadURL(BACKEND_URL);
+      await loadAppWindow();
     }
   } else {
     // Need to start backend
@@ -375,7 +385,7 @@ app.whenReady().then(async () => {
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
       await sleep(Math.max(0, MIN_SPLASH_MS - (Date.now() - splashStartedAt)));
-      mainWindow.loadURL(BACKEND_URL);
+      await loadAppWindow();
     }
   }
 
