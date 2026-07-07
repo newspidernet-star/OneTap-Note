@@ -309,12 +309,9 @@ function showMainWindow() {
 
 async function loadAppWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  // The backend serves a rebuilt Vite bundle at the same localhost URL.
-  // Clear Chromium's cache so the desktop shell never keeps an old index.
-  await mainWindow.webContents.session.clearCache();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    await mainWindow.loadURL(BACKEND_URL);
-  }
+  // Refresh only the HTML entry point. Hashed Vite assets can stay cached,
+  // which avoids the startup pause caused by clearing Chromium's whole cache.
+  await mainWindow.loadURL(`${BACKEND_URL}/?desktop=${Date.now()}`);
 }
 
 function killBackend() {
