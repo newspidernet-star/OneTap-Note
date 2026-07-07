@@ -120,7 +120,8 @@ export default function Workstation() {
   const [uploadErrorSessionId, setUploadErrorSessionId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isDark, setIsDark] = useState(true);
-  const [justGenerated, setJustGenerated] = useState(false);
+  const [generationSessionId, setGenerationSessionId] = useState<string | null>(null);
+  const [justGeneratedSessionId, setJustGeneratedSessionId] = useState<string | null>(null);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [linkInput, setLinkInput] = useState("");
   const [uploadRunning, setUploadRunning] = useState(false);
@@ -354,15 +355,20 @@ export default function Workstation() {
   });
   const generateMutation = useGenerateSummary({
     mutation: {
-      onSuccess: () => {
-        queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(activeSessionId) });
-        setGenerateError(null);
-        setJustGenerated(true);
-        setTimeout(() => setJustGenerated(false), 600);
+      onSuccess: (_data, variables) => {
+        queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(variables.sessionId) });
+        if (variables.sessionId === activeSessionId) setGenerateError(null);
+        setJustGeneratedSessionId(variables.sessionId);
+        setTimeout(() => {
+          setJustGeneratedSessionId(current => current === variables.sessionId ? null : current);
+        }, 600);
       },
-      onError: (error: any) => setGenerateError(error?.message?.includes("语音转写")
-        ? "语音转写还没有完成，请稍后再生成知识笔记"
-        : "生成失败，请检查 API 设置"),
+      onError: (error: any, variables) => {
+        if (variables.sessionId !== activeSessionId) return;
+        setGenerateError(error?.message?.includes("语音转写")
+          ? "语音转写还没有完成，请稍后再生成知识笔记"
+          : "生成失败，请检查 API 设置");
+      },
     },
   });
   const exportMdMut = useExportObsidianMd();
@@ -453,9 +459,14 @@ export default function Workstation() {
   };
 
   const regenerateSummary = async (sessionId: string, priorityMaterialIds: number[] = []) => {
-    await matchMut.mutateAsync({ sessionId });
-    await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
-    invalidateAll(sessionId);
+    setGenerationSessionId(sessionId);
+    try {
+      await matchMut.mutateAsync({ sessionId });
+      await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
+      invalidateAll(sessionId);
+    } finally {
+      setGenerationSessionId(current => current === sessionId ? null : current);
+    }
   };
 
   const handleFiles = async (files: FileList | null, appendToCurrent = false) => {
@@ -542,15 +553,14 @@ export default function Workstation() {
       });
       return;
     }
-    if (matchMut.isPending || generateMutation.isPending) return;
+    if (generationSessionId || matchMut.isPending || generateMutation.isPending) return;
     setGenerateError(null);
     try {
-      await matchMut.mutateAsync({ sessionId: activeSessionId });
-      generateMutation.mutate({ sessionId: activeSessionId });
+      await regenerateSummary(activeSessionId);
     } catch (error: any) {
       setGenerateError(error?.message?.includes("语音转写")
         ? "语音转写还没有完成，请稍后再生成知识笔记"
-        : "匹配失败，请检查证据块");
+        : "生成失败，请检查证据块和 API 设置");
     }
   };
 
@@ -617,11 +627,12 @@ export default function Workstation() {
         ? "done"
         : "idle";
 
+  const isActiveSessionGenerating = generationSessionId === activeSessionId;
   const buttonStatus: ButtonStatus = generateError
     ? "error"
-    : matchMut.isPending
+    : isActiveSessionGenerating && matchMut.isPending
       ? "matching"
-      : generateMutation.isPending
+      : isActiveSessionGenerating && generateMutation.isPending
         ? "summarizing"
         : awaitingTranscription || transcribeMut.isPending
           ? "transcribing"
@@ -629,7 +640,7 @@ export default function Workstation() {
             ? "done"
             : "idle";
 
-  const canGenerate = !isMock && !matchMut.isPending && !generateMutation.isPending && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const canGenerate = !isMock && !generationSessionId && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
   const settingsByKey = useMemo(
     () => new Map((settingsStatus as any[]).map(item => [item.key, item])),
     [settingsStatus]
@@ -1060,7 +1071,7 @@ export default function Workstation() {
                 </div>
 
                 <motion.div
-                  animate={justGenerated ? { scale: [1, 1.03, 1] } : {}}
+                  animate={justGeneratedSessionId === activeSessionId ? { scale: [1, 1.03, 1] } : {}}
                   transition={{ duration: 0.5, ease: 'easeOut' }}
                 >
                   <CollapsibleCard icon={Sparkles} title="知识笔记" defaultOpen={true}>

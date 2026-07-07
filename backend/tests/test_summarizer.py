@@ -26,6 +26,8 @@ def test_build_prompt():
     assert "正文不显示 S/P 证据 ID" in prompt
     assert "显式清单必须保真" in prompt
     assert "全部 N 条" in prompt
+    assert "不要自行生成行动优先级" in prompt
+    assert "保持清单原始顺序" in prompt
 
 
 def test_call_deepseek_mocked(monkeypatch):
