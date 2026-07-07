@@ -5,7 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 type SummaryCTAState = "idle" | "loading" | "error" | "generated";
 
-const stages = ["上传", "OCR", "转写", "匹配证据块", "生成总结"];
+const stages = ["上传", "OCR", "转写", "匹配证据块", "生成知识笔记"];
 
 interface SummaryHeroCardProps {
   state?: SummaryCTAState;
@@ -34,8 +34,8 @@ export function SummaryHeroCard({
   const buttonLabel = isError
     ? "重试生成"
     : isGenerated
-      ? "重新生成"
-      : "生成 AI 总结";
+      ? "重新生成笔记"
+      : "生成知识笔记";
 
   const handleClick = isError ? onRetry : isGenerated ? onRegenerate : onGenerate;
 
@@ -52,11 +52,11 @@ export function SummaryHeroCard({
         </div>
 
         <h2 className="text-3xl font-semibold tracking-normal text-card-foreground sm:text-4xl">
-          AI 总结
+          知识笔记
         </h2>
 
         <p className="mx-auto mt-3 max-w-md text-base leading-7 text-muted-foreground sm:text-lg">
-          上传媒体或粘贴链接后生成带引用来源的结构化总结
+          上传媒体或粘贴链接后，生成不看原视频也能直接使用的知识笔记
         </p>
 
         <div className="mt-8 flex justify-center">

@@ -349,13 +349,13 @@ export function useGetEphemeral<TData = any, TError = unknown>(
 
 export const useExportObsidianMd = <TError = unknown, TContext = unknown>(
   options?: {
-    mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; view?: "note" | "transcript" | "evidence" }, TContext>;
   }
 ) => {
-  return useMutation<any, TError, { sessionId: string }, TContext>({
-    mutationFn: ({ sessionId }) =>
+  return useMutation<any, TError, { sessionId: string; view?: "note" | "transcript" | "evidence" }, TContext>({
+    mutationFn: ({ sessionId, view = "note" }) =>
       safeFetch<{ markdown: string; filename: string }>(
-        `/api/summary/export/${toIntId(sessionId)}`
+        `/api/summary/export/${toIntId(sessionId)}?view=${view}`
       ),
     ...options?.mutation,
   });

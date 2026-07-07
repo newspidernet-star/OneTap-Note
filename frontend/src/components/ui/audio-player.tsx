@@ -256,7 +256,7 @@ const AudioPlayer = ({
           const skip = data?.skipped?.length ?? 0;
           if (ok > 0) {
             toast.success(`已抓取 ${ok} 帧`, {
-              description: skip > 0 ? `${skip} 帧抽帧失败已跳过` : "已加入时间线，并将自动纳入 AI 总结",
+              description: skip > 0 ? `${skip} 帧抽帧失败已跳过` : "已加入时间线，并将自动纳入知识笔记",
             });
           } else {
             toast.error("抓帧失败", { description: "所有帧抽帧均失败" });
@@ -506,7 +506,7 @@ const AudioPlayer = ({
                                 <li>拖动播放头到要补的关键帧位置</li>
                                 <li>点 <span className="font-medium text-foreground">标记当前帧</span> 加入待处理列表（可重复多次）</li>
                                 <li>点 <span className="font-medium text-foreground">处理全部</span> 批量抽帧 + OCR，自动加入时间线</li>
-                                <li>完成后可重新生成 AI 总结，让新帧参与引用</li>
+                                <li>完成后可重新生成知识笔记，让新帧参与引用</li>
                               </ol>
                               <p className="text-xs text-muted-foreground/70">适用于自动抽帧漏掉的 PPT 页 / 关键画面。</p>
                             </div>

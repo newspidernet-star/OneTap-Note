@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import logging
 import time
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -202,9 +203,87 @@ def _block_heading(block: EvidenceBlock) -> str:
     return f"{block.block_id} · {ts_str}"
 
 
+def _frontmatter(title: str, created: str, kind: str) -> list[str]:
+    lines = [
+        "---",
+        f"title: {_yaml_string(title)}",
+    ]
+    if created:
+        lines.append(f"date: {created}")
+    lines.extend([
+        "source: smart-scribe",
+        f"type: {kind}",
+        "tags:",
+        "  - smart-scribe",
+        "  - video-note",
+        "---",
+        "",
+    ])
+    return lines
+
+
+def _export_note(title: str, created: str, summary: Summary) -> str:
+    lines = _frontmatter(title, created, "knowledge-note")
+    lines.extend([f"# {title}", ""])
+    body = (summary.summary_markdown or "").strip()
+    if body:
+        lines.extend([body, ""])
+    elif summary.key_points:
+        lines.extend(["## 核心结论", ""])
+        for kp in summary.key_points:
+            point = (kp.get("point") or "").strip()
+            if point:
+                lines.append(f"- {point}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _export_transcript(title: str, created: str, summary: Summary, blocks: list[EvidenceBlock]) -> str:
+    lines = _frontmatter(f"{title} - 完整原文", created, "transcript")
+    lines.extend([f"# {title} - 完整原文", ""])
+    corrected = (summary.corrected_text or "").strip()
+    if corrected:
+        lines.extend(["## 语音转写（已纠错）", "", corrected, ""])
+    visual_blocks = [b for b in blocks if b.type != "speech" and (b.text or "").strip()]
+    if visual_blocks:
+        lines.extend(["## 画面文字", ""])
+        for block in visual_blocks:
+            lines.extend([f"### {_fmt_ts(block.timestamp)}", "", block.text.strip(), ""])
+    return "\n".join(lines)
+
+
+def _export_evidence(title: str, created: str, summary: Summary, blocks: list[EvidenceBlock]) -> str:
+    lines = _frontmatter(f"{title} - 证据记录", created, "evidence")
+    lines.extend([
+        f"# {title} - 证据记录",
+        "",
+        "> 这份文件用于复核知识笔记。默认阅读请使用主笔记文件。",
+        "",
+        "## 证据索引",
+        "",
+        "| ID | 类型 | 时间 | 内容 |",
+        "| --- | --- | --- | --- |",
+    ])
+    for block in blocks:
+        kind = "语音" if block.type == "speech" else "画面"
+        text = _clip(block.text, 72).replace("|", "\\|")
+        lines.append(f"| `{block.block_id}` | {kind} | {_fmt_ts(block.timestamp)} | {text} |")
+    lines.extend(["", "## 完整证据", ""])
+    for block in blocks:
+        lines.extend([f"### {_block_heading(block)}", "", (block.text or "（无文字内容）").strip(), ""])
+    unused_ids = summary.unused_block_ids or []
+    if unused_ids:
+        lines.extend(["## 未被正文引用", "", _compact_ids(unused_ids), ""])
+    return "\n".join(lines)
+
+
 @router.get("/export/{session_id}")
-def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
-    """导出为 Obsidian 兼容的 Markdown 文档。"""
+def export_obsidian_md(
+    session_id: int,
+    view: Literal["note", "transcript", "evidence"] = "note",
+    db: Session = Depends(get_db),
+):
+    """导出干净笔记、完整原文或证据记录，单次只返回一个 Markdown 文件。"""
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -215,111 +294,14 @@ def export_obsidian_md(session_id: int, db: Session = Depends(get_db)):
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
     title = session.title or "Untitled"
     created = session.created_at[:10] if session.created_at else ""
-    unused_ids = summary.unused_block_ids or []
-    key_points = summary.key_points or []
-    cited_ids = sorted({
-        str(cid)
-        for kp in key_points
-        for cid in kp.get("citations", [])
-        if cid
-    })
-
-    lines: list[str] = []
-    lines.append("---")
-    lines.append(f"title: {_yaml_string(title)}")
-    if created:
-        lines.append(f"date: {created}")
-    lines.append("source: smart-scribe")
-    lines.append("status: inbox")
-    lines.append(f"evidence_count: {len(blocks)}")
-    lines.append(f"cited_count: {len(cited_ids)}")
-    lines.append("tags:")
-    lines.append("  - smart-scribe")
-    lines.append("  - video-note")
-    lines.append("  - inbox")
-    lines.append("---")
-    lines.append("")
-
-    lines.append(f"# {title}")
-    lines.append("")
-
-    lines.append("> [!info] Smart Scribe")
-    lines.append(f"> 创建时间：{session.created_at or '未知'}")
-    lines.append(f"> 证据块：{len(blocks)} 个；已引用：{len(cited_ids)} 个；未引用：{len(unused_ids)} 个。")
-    lines.append("")
-
-    if summary.summary_markdown:
-        lines.append("## 摘要")
-        lines.append("")
-        lines.append(summary.summary_markdown.strip())
-        lines.append("")
-
-    if key_points:
-        lines.append("## 关键要点")
-        lines.append("")
-        for kp in key_points:
-            point = (kp.get("point") or "").strip()
-            citations = [str(cid) for cid in kp.get("citations", []) if cid]
-            if not point:
-                continue
-            if citations:
-                lines.append(f"- {point}  ")
-                lines.append(f"  证据：{_compact_ids(citations)}")
-            else:
-                lines.append(f"- {point}")
-        lines.append("")
-
-    if blocks:
-        lines.append("## 证据索引")
-        lines.append("")
-        lines.append("| ID | 类型 | 时间 | 摘要 |")
-        lines.append("| --- | --- | --- | --- |")
-        for b in blocks:
-            kind = "语音" if b.type == "speech" else "画面"
-            text = _clip(b.text, 48).replace("|", "\\|")
-            lines.append(f"| `{b.block_id}` | {kind} | {_fmt_ts(b.timestamp)} | {text} |")
-        lines.append("")
-
-        lines.append("## 复习线索")
-        lines.append("")
-        for kp in key_points[:5]:
-            point = _clip(kp.get("point", ""), 72)
-            if point:
-                lines.append(f"- 我能否用自己的话解释：{point}")
-        lines.append("- 哪些结论值得回到原视频或原文证据核对？")
-        lines.append("")
-
-    if unused_ids:
-        lines.append("## 未引用证据")
-        lines.append("")
-        lines.append(f"有 {len(unused_ids)} 个证据块没有被摘要或要点引用，可能是噪声、重复内容，也可能是值得人工复核的遗漏信息。")
-        lines.append("")
-        lines.append("<details>")
-        lines.append("<summary>展开未引用证据 ID</summary>")
-        lines.append("")
-        lines.append(_compact_ids(unused_ids))
-        lines.append("")
-        lines.append("</details>")
-        lines.append("")
-
-    if blocks:
-        lines.append("## 详细原文")
-        lines.append("")
-        lines.append("<details>")
-        lines.append(f"<summary>展开全部证据原文（{len(blocks)} 块）</summary>")
-        lines.append("")
-        for b in blocks:
-            lines.append(f"### {_block_heading(b)}")
-            lines.append("")
-            if b.text:
-                lines.append(b.text.strip())
-            if b.image_path:
-                img_name = b.image_path.replace("\\", "/").split("/")[-1]
-                lines.append("")
-                lines.append(f"![[{img_name}]]")
-            lines.append("")
-        lines.append("</details>")
-        lines.append("")
-
-    md = "\n".join(lines)
-    return {"markdown": md, "filename": f"{title}.md"}
+    if view == "transcript":
+        return {
+            "markdown": _export_transcript(title, created, summary, blocks),
+            "filename": f"{title}-完整原文.md",
+        }
+    if view == "evidence":
+        return {
+            "markdown": _export_evidence(title, created, summary, blocks),
+            "filename": f"{title}-证据记录.md",
+        }
+    return {"markdown": _export_note(title, created, summary), "filename": f"{title}.md"}

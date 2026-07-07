@@ -40,7 +40,7 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
           <div className="text-center">
             <p className={`text-sm font-semibold ${info.accent}`}>{info.label}</p>
             {status === "done" && (
-              <p className="text-[11px] text-muted-foreground/70 mt-0.5">点击右侧「生成 AI 总结」</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">点击右侧「生成知识笔记」</p>
             )}
           </div>
 

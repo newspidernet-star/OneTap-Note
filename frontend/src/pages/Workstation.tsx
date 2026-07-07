@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, ListChecks, TriangleAlert, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, ArrowUp } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, FileText, ArrowUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import {
   useListSessions,
   useGetEvidenceBlocks,
@@ -52,20 +53,6 @@ const MOCK_SUMMARY = {
   citation_valid: true,
   invalid_citations: [] as string[],
   corrections: [] as any[],
-};
-
-const CitationTag = ({ id, type, onClick }: { id: string; type: string; onClick: (e: React.MouseEvent) => void }) => {
-  const isSpeech = type === 'speech';
-  return (
-    <motion.button
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={(e) => { e.stopPropagation(); onClick(e); }}
-      className={`rounded-full border px-2 py-0.5 text-xs font-mono cursor-pointer transition-colors ${isSpeech ? 'border-primary/20 bg-primary/10 text-primary hover:bg-primary/15' : 'border-cyan-600/25 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-400/25 dark:bg-cyan-400/12 dark:text-cyan-200'}`}
-    >
-      {id}
-    </motion.button>
-  );
 };
 
 const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: any; title: string; defaultOpen: boolean; children: React.ReactNode }) => {
@@ -133,7 +120,6 @@ export default function Workstation() {
   const [uploadErrorSessionId, setUploadErrorSessionId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isDark, setIsDark] = useState(true);
-  const [showKeyPoints, setShowKeyPoints] = useState(true);
   const [justGenerated, setJustGenerated] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [linkInput, setLinkInput] = useState("");
@@ -371,16 +357,25 @@ export default function Workstation() {
       onSuccess: () => {
         queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(activeSessionId) });
         setGenerateError(null);
-        setShowKeyPoints(true);
         setJustGenerated(true);
         setTimeout(() => setJustGenerated(false), 600);
       },
       onError: (error: any) => setGenerateError(error?.message?.includes("语音转写")
-        ? "语音转写还没有完成，请稍后再生成总结"
+        ? "语音转写还没有完成，请稍后再生成知识笔记"
         : "生成失败，请检查 API 设置"),
     },
   });
   const exportMdMut = useExportObsidianMd();
+
+  const copyExport = async (view: "note" | "transcript" | "evidence", label: string) => {
+    try {
+      const result = await exportMdMut.mutateAsync({ sessionId: activeSessionId, view });
+      await navigator.clipboard.writeText(result.markdown);
+      sonnerToast.success(`${label}已复制`, { description: `建议保存为 ${result.filename}` });
+    } catch (error: any) {
+      sonnerToast.error(`${label}复制失败`, { description: error?.message || "未知错误" });
+    }
+  };
 
   const activeSession = realSessions.find(s => s.id === activeSessionId);
   const displaySummary = summary ?? (isMock ? MOCK_SUMMARY : null);
@@ -499,8 +494,8 @@ export default function Workstation() {
       }
       if (wasAppending) {
         await regenerateSummary(sessionId!, uploadedMaterialIds);
-        sonnerToast.success("补充资料已纳入总结", {
-          description: "已按用户重点补充重新生成 AI 总结",
+        sonnerToast.success("补充资料已纳入知识笔记", {
+          description: "已按用户重点补充重新生成知识笔记",
         });
       }
       void proc;
@@ -514,21 +509,6 @@ export default function Workstation() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (appendFileInputRef.current) appendFileInputRef.current.value = "";
     }
-  };
-
-  const handleCitationClick = (id: string) => {
-    setTimelineVisible(true);
-    setHighlightedBlock(id);
-    setTimeout(() => {
-      const el = document.getElementById(`ev-${id}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const block = displayEvidence.find(b => b.id === id);
-      if (block && videoRef.current) {
-        const ts = typeof block.timestamp === "number" ? block.timestamp : parseTimestamp(block.timestamp);
-        if (ts !== null && !Number.isNaN(ts)) videoRef.current.currentTime = ts;
-      }
-    }, 300);
-    setTimeout(() => setHighlightedBlock(null), 2000);
   };
 
   const parseTimestamp = (ts: any): number | null => {
@@ -549,7 +529,7 @@ export default function Workstation() {
     if (isMock || !activeSessionId || displayEvidence.length === 0) {
       pulseUploadOnce();
       toast({
-        title: "还不能生成总结",
+        title: "还不能生成知识笔记",
         description: "请等待媒体处理完成并生成证据块后再试。",
         variant: "destructive",
       });
@@ -558,7 +538,7 @@ export default function Workstation() {
     if (awaitingTranscription || transcribeMut.isPending) {
       toast({
         title: "语音还在转写",
-        description: "等音频/视频转写完成后再生成总结，这样总结会同时包含画面和语音内容。",
+        description: "等音频/视频转写完成后再生成，这样知识笔记会同时包含画面和语音内容。",
       });
       return;
     }
@@ -569,7 +549,7 @@ export default function Workstation() {
       generateMutation.mutate({ sessionId: activeSessionId });
     } catch (error: any) {
       setGenerateError(error?.message?.includes("语音转写")
-        ? "语音转写还没有完成，请稍后再生成总结"
+        ? "语音转写还没有完成，请稍后再生成知识笔记"
         : "匹配失败，请检查证据块");
     }
   };
@@ -610,8 +590,8 @@ export default function Workstation() {
       }
       if (wasAppending) {
         await regenerateSummary(sessionId!, downloadedMaterialIds);
-        sonnerToast.success("补充链接已纳入总结", {
-          description: "已按用户重点补充重新生成 AI 总结",
+        sonnerToast.success("补充链接已纳入知识笔记", {
+          description: "已按用户重点补充重新生成知识笔记",
         });
       }
       setLinkInput("");
@@ -932,7 +912,7 @@ export default function Workstation() {
           <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border/50">
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-5 h-5 text-primary" />
-              <span className="font-semibold text-base">AI 总结</span>
+              <span className="font-semibold text-base">知识笔记</span>
             </div>
             {activeSession?.status === "done" && !isMock && (
               <div className="relative">
@@ -963,7 +943,7 @@ export default function Workstation() {
                         <div>
                           <div className="text-sm font-semibold text-foreground">补充到当前会话</div>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            新素材会进入时间线；总结需要重新生成后才会纳入新内容。
+                            新素材会进入时间线；知识笔记需要重新生成后才会纳入新内容。
                           </p>
                         </div>
                         <button
@@ -1034,8 +1014,8 @@ export default function Workstation() {
                 if (activeSessionId && displaySummary && !awaitingTranscription && !transcribeMut.isPending) {
                   try {
                     await regenerateSummary(activeSessionId, data?.blocks?.map((b: any) => Number(b.material_id)).filter(Number.isFinite) ?? []);
-                    sonnerToast.success("选帧补充已纳入总结", {
-                      description: "已按用户手动补充重新生成 AI 总结",
+                    sonnerToast.success("选帧补充已纳入知识笔记", {
+                      description: "已按用户手动补充重新生成知识笔记",
                     });
                   } catch (error: any) {
                     setGenerateError(error?.message || "选帧补充后重新生成失败");
@@ -1054,20 +1034,28 @@ export default function Workstation() {
                     </div>
                   )}
                   <button
-                    onClick={async () => {
-                      try {
-                        const result = await exportMdMut.mutateAsync({ sessionId: activeSessionId });
-                        await navigator.clipboard.writeText(result.markdown);
-                        alert(`已复制到剪贴板\n保存为 ${result.filename}`);
-                      } catch (e: any) {
-                        alert(`导出失败：${e?.message || '未知错误'}`);
-                      }
-                    }}
+                    onClick={() => copyExport("note", "知识笔记")}
                     disabled={exportMdMut.isPending}
                     className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary/15 disabled:opacity-50"
                   >
                     {exportMdMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                    复制 MD
+                    复制笔记
+                  </button>
+                  <button
+                    onClick={() => copyExport("transcript", "完整原文")}
+                    disabled={exportMdMut.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    复制原文
+                  </button>
+                  <button
+                    onClick={() => copyExport("evidence", "证据记录")}
+                    disabled={exportMdMut.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <ScanLine className="w-3.5 h-3.5" />
+                    复制证据
                   </button>
                 </div>
 
@@ -1075,42 +1063,18 @@ export default function Workstation() {
                   animate={justGenerated ? { scale: [1, 1.03, 1] } : {}}
                   transition={{ duration: 0.5, ease: 'easeOut' }}
                 >
-                  <CollapsibleCard icon={ListChecks} title="核心要点" defaultOpen={showKeyPoints}>
-                    <div className="space-y-3">
-                      {displaySummary.key_points.map((kp, idx) => (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.08 }}
-                          className="flex gap-3 rounded-lg border border-border/50 bg-background/70 p-3 transition-colors cursor-pointer group hover:border-primary/30 hover:bg-muted/40"
-                          onClick={() => {
-                            if (kp.citations.length > 0) handleCitationClick(kp.citations[0]);
-                          }}
-                        >
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground border border-primary/20 flex items-center justify-center text-xs font-semibold mt-0.5 group-hover:scale-110 transition-transform">
-                            {idx + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[14px] text-foreground/90 leading-7">{kp.point}</p>
-                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                              {kp.citations.map(c => {
-                                const ev = displayEvidence.find(e => e.id === c);
-                                return <CitationTag key={c} id={c} type={ev?.type || 'speech'} onClick={() => handleCitationClick(c)} />;
-                              })}
-                            </div>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 mt-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </motion.div>
-                      ))}
+                  <CollapsibleCard icon={Sparkles} title="知识笔记" defaultOpen={true}>
+                    <div className="prose prose-sm max-w-none px-4 py-3 text-foreground/90 dark:prose-invert prose-headings:font-semibold prose-headings:tracking-normal prose-h2:mb-3 prose-h2:mt-6 prose-h2:text-base prose-h2:first:mt-0 prose-p:my-3 prose-p:leading-7 prose-li:my-1 prose-li:leading-7 prose-blockquote:border-primary/40 prose-blockquote:text-muted-foreground prose-a:text-primary">
+                      <ReactMarkdown
+                        components={{
+                          a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+                        }}
+                      >
+                        {displaySummary.summary}
+                      </ReactMarkdown>
                     </div>
                   </CollapsibleCard>
                 </motion.div>
-
-                <CollapsibleCard icon={Sparkles} title="摘要" defaultOpen={true}>
-                  <div className="rounded-lg border border-border/50 bg-background/70 p-4 text-[14px] leading-7 text-foreground/90">{displaySummary.summary}</div>
-                </CollapsibleCard>
-
               </motion.div>
             )}
             {displayEvidence.length > 0 && (
@@ -1139,22 +1103,8 @@ export default function Workstation() {
                 </CollapsibleCard>
               </motion.div>
             )}
-            {displaySummary && displaySummary.unused_block_ids.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px]">
-                <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 overflow-hidden">
-                  <div className="px-4 py-3 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <TriangleAlert className="w-3.5 h-3.5 text-amber-500" /> 未被引用
-                  </div>
-                  <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-                    {displaySummary.unused_block_ids.map(id => (
-                      <span key={id} className="px-2.5 py-1 rounded-lg border border-border bg-background/50 text-xs font-mono text-muted-foreground">{id}</span>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
             {!displaySummary && !isMock && displayEvidence.length === 0 && (
-              <div className="text-center text-xs text-muted-foreground/50 py-8">先上传媒体、处理生成证据块后，点击上方按钮生成总结</div>
+              <div className="text-center text-xs text-muted-foreground/50 py-8">先上传媒体、处理生成证据块后，点击上方按钮生成知识笔记</div>
             )}
             <div className="hidden mt-4 w-full max-w-[520px]">
               <CollapsibleCard icon={Film} title={`原文证据 · ${displayEvidence.length} 块`} defaultOpen={false}>

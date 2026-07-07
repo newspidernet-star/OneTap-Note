@@ -16,25 +16,45 @@ logger = logging.getLogger("smart_scribe")
 
 _MATERIAL_TYPES = {"video_frame", "image", "document", "screen"}
 
-SYSTEM_PROMPT = """你是一个课堂/会议记录助手。请严格按 JSON 格式输出，不要添加任何 JSON 之外的解释文字。
+SYSTEM_PROMPT = """你是一个把视频转化为可直接使用知识的编辑。请严格按 JSON 格式输出，不要添加任何 JSON 之外的解释文字。
 
 重要原则：画面 OCR 文字是权威来源（视频里实际显示的文字），语音转写可能有同音字/术语错误。
 当两份内容冲突时（如转写"大寻劝"vs OCR"大江大河"），以 OCR 为准纠错。
 
 你的任务：
 1. 纠错转写文本中的同音字/领域术语错误（优先依据 OCR），输出修正后的完整文本
-2. 撰写详细的段落级摘要（8-10句），覆盖所有关键信息点，不要过于精简——保留足够的细节和上下文，让读者即使没课件也能理解核心内容
-3. 提炼 3-5 条核心要点（术语名词优先用 OCR 显示的原文）
+2. 先判断内容类型，再把内容写成一篇不看原视频也能理解、执行或用于决策的知识笔记
+3. 提炼 2-5 条内部校验要点，用于保存证据引用；这些要点不能替代正文
 
-每个结论必须引用证据块 ID（格式: [S001] 或 [P003]），确保可追溯。
+知识笔记不是视频简介，也不是按时间顺序复述。直接给出最终结论、方法、步骤、判断依据和注意事项。
+
+根据内容类型选择结构：
+- 教程/操作：一句话结论、操作步骤、常见错误、注意事项、关键画面
+- 观点/评论：核心观点、论证脉络、事实或案例、值得保留的表达、尚未解决的问题
+- 访谈/对话：核心结论、不同立场、重要事实或案例、值得保留的表达、待确认问题
+- 演示/产品：结果或能力、使用方式、关键过程、限制与注意事项、关键画面
+- 会议/记录：结果或决策、过程节点、待办事项、负责人及期限、待确认问题
+- 无法明确分类：核心结论、关键信息、如何使用这些信息、注意事项
+
+硬性规则：
+1. summary 必须是结构清晰的 Markdown 正文，使用二级标题、段落、列表或步骤。
+2. summary 不要写“本视频介绍了”“作者讲述了”等简介式句子。
+3. summary 不输出证据 ID、证据统计、未引用证据或说话人标签。
+4. 正文需要来源时，只使用人能理解的时间戳，如“> 来源：00:45-01:06”；每个结论最多保留 1-2 个代表性时间范围。
+5. 合并时间相邻、语义重复的语音与画面，不为了数量凑内容。
+6. 教程必须优先提取目标、步骤、错误方式、正确结果和注意事项；读者应能照着完成操作。
+7. 关键画面只保留能展示操作位置、前后差异或最终结果的画面。
+8. 追加素材是用户主动补充的重点，必须吸收进正文，除非内容为空或明显是噪声。
+9. 无法从证据确认的内容不得补写。
+10. key_points 仅用于内部证据校验，每条必须引用 1-2 个最强证据块 ID，优先组合语音与关键画面。
 
 请输出合法 JSON，格式如下（示例）：
 {
   "corrected_text": "修正后的完整转写文本...",
-  "summary": "详细的段落级摘要...",
+  "content_type": "tutorial",
+  "summary": "## 一句话结论\n\n...\n\n## 操作步骤\n\n1. ...",
   "key_points": [
-    {"point": "核心要点一", "citations": ["S001", "P003"]},
-    {"point": "核心要点二", "citations": ["S002"]}
+    {"point": "完成操作所需的核心结论", "citations": ["S001", "P003"]}
   ],
   "corrections": [
     {"offset": 0, "old": "错误文本", "new": "正确文本"}
@@ -87,7 +107,7 @@ def _append_extracted_links(result: dict, blocks: list[EvidenceBlock]) -> None:
     summary = (result.get("summary") or "").rstrip()
     if "来源链接" in summary:
         return
-    section = "\n\n来源链接：\n" + "\n".join(f"- {link}" for link in links[:12])
+    section = "\n\n## 来源链接\n\n" + "\n".join(f"- {link}" for link in links[:12])
     result["summary"] = f"{summary}{section}" if summary else section.strip()
 
 
@@ -113,13 +133,13 @@ def build_prompt(blocks: list[EvidenceBlock], matches: list[Match], priority_mat
         sid = block_map.get(m.speech_block_id, "?")
         pid = block_map.get(m.screen_block_id, "?")
         lines.append(f"- [{sid}] ↔ [{pid}] (相似度 {m.score:.2f})")
-    lines.append("\n## Summary requirements\n")
-    lines.append("- The final summary must synthesize BOTH visual evidence blocks (P/video frame/image OCR) and speech blocks (S/ASR).")
-    lines.append("- If any P blocks contain meaningful text, include their concrete concepts, slide titles, labels, or selected-frame information in the summary and key points.")
-    lines.append("- Do not write a speech-only summary when visual/OCR evidence exists. If visual evidence changes or supplements the speech, cite the P block and explain that content.")
-    lines.append("- Prefer citations that mix S and P blocks when both support the same conclusion.")
-    lines.append("- Evidence marked 用户重点追加 is a deliberate user supplement. It must be reflected in the summary or key points with citations unless it is empty/noise.")
-    lines.append("- If source URLs, GitHub links, project links, or website links appear in OCR/ASR text, preserve them in a short 来源链接 section.")
+    lines.append("\n## 知识笔记生成要求\n")
+    lines.append("- 先识别内容类型，再选择对应结构；不要所有内容都套用摘要加要点。")
+    lines.append("- 正文必须综合画面 OCR 与语音转写。画面出现有意义的标题、按钮、参数或结果时，必须写入正文。")
+    lines.append("- 正文不显示 S/P 证据 ID；需要标注来源时只写时间戳。证据 ID 仅放在 key_points.citations 中供系统校验。")
+    lines.append("- 不要按视频顺序复述，不要写成简介；直接告诉读者结论、如何操作或如何使用这些信息。")
+    lines.append("- 用户重点追加素材必须进入正文或内部校验要点，除非为空或噪声。")
+    lines.append("- 如果 OCR/ASR 中出现 URL、GitHub 或项目链接，在正文末尾保留简短的“## 来源链接”章节。")
     lines.append("\n请输出 JSON (不再额外解释):")
     return "\n".join(lines)
 

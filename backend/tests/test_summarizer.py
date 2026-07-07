@@ -22,6 +22,8 @@ def test_build_prompt():
     assert "匹配关联" in prompt
     assert "[S001] ↔ [P001]" in prompt
     assert "0.80" in prompt
+    assert "不要按视频顺序复述" in prompt
+    assert "正文不显示 S/P 证据 ID" in prompt
 
 
 def test_call_deepseek_mocked(monkeypatch):

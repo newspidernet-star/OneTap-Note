@@ -126,7 +126,7 @@ export default function MediaExpanded({
           const skip = data?.skipped?.length ?? 0;
           if (ok > 0) {
             toast.success(`已抓取 ${ok} 帧`, {
-              description: skip > 0 ? `${skip} 帧失败已跳过` : "已加入时间线，并将自动纳入 AI 总结",
+              description: skip > 0 ? `${skip} 帧失败已跳过` : "已加入时间线，并将自动纳入知识笔记",
             });
           } else {
             toast.error("抓帧失败");
@@ -211,7 +211,7 @@ export default function MediaExpanded({
                         <li>拖到想补充的画面</li>
                         <li>标记当前帧，可选多个</li>
                         <li>处理全部后自动加入时间线</li>
-                        <li>完成后自动重新生成 AI 总结</li>
+                        <li>完成后自动重新生成知识笔记</li>
                       </ol>
                     </PopoverContent>
                   </Popover>

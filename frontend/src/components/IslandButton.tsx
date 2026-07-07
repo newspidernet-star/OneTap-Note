@@ -120,7 +120,7 @@ export default function IslandButton({
               </div>
               {onRegenerate && (
                 <button onClick={onRegenerate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-foreground/5">
-                  <RefreshCw className="w-3 h-3" /> 重新生成
+                  <RefreshCw className="w-3 h-3" /> 重新生成笔记
                 </button>
               )}
             </div>
@@ -153,7 +153,7 @@ export default function IslandButton({
                 disabled={!generable}
                 className="group w-full rounded-xl border border-primary/20 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 py-3.5 px-4 text-base font-semibold disabled:opacity-45"
               >
-                <span>{status === "done" && !hasMedia ? "重新生成" : "生成 AI 总结"}</span>
+                <span>{status === "done" && !hasMedia ? "重新生成笔记" : "生成知识笔记"}</span>
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
               </button>
             )}

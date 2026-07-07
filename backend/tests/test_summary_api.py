@@ -1,5 +1,32 @@
 import pytest
 
+from app.api.summary import _export_evidence, _export_note, _export_transcript
+from app.models import EvidenceBlock, Summary
+
+
+def test_export_note_is_clean_and_evidence_stays_separate():
+    summary = Summary(
+        corrected_text="打开导入窗口，然后勾选图像序列。",
+        summary_markdown="## 一句话结论\n\n只选第一张图片并勾选图像序列。\n\n## 操作步骤\n\n1. 打开导入窗口。",
+        key_points=[{"point": "正确导入图像序列", "citations": ["S001", "P001"]}],
+        unused_block_ids=["S002"],
+    )
+    speech = EvidenceBlock(block_id="S001", session_id=1, type="speech", timestamp=45, speaker="讲师", text="只选第一张图片")
+    frame = EvidenceBlock(block_id="P001", session_id=1, type="video_frame", timestamp=56, text="图像序列")
+
+    note = _export_note("Premiere 导入图像序列", "2026-07-07", summary)
+    transcript = _export_transcript("Premiere 导入图像序列", "2026-07-07", summary, [speech, frame])
+    evidence = _export_evidence("Premiere 导入图像序列", "2026-07-07", summary, [speech, frame])
+
+    assert "## 操作步骤" in note
+    assert "S001" not in note
+    assert "证据索引" not in note
+    assert "详细原文" not in note
+    assert "语音转写（已纠错）" in transcript
+    assert "图像序列" in transcript
+    assert "`S001`" in evidence
+    assert "未被正文引用" in evidence
+
 
 @pytest.mark.anyio
 async def test_match_and_generate_and_result(client, monkeypatch):
