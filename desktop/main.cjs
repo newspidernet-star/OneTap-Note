@@ -13,7 +13,6 @@ let healthPollTimer = null;
 let isQuiting = false;
 let lastStartupStatus = null;
 let closePromptOpen = false;
-let currentIsDark = true;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
@@ -201,7 +200,6 @@ function waitForHealth(timeoutMs) {
 }
 
 function applyTitleBarTheme(isDark) {
-  currentIsDark = isDark;
   const t = isDark ? THEME.dark : THEME.light;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setTitleBarOverlay({ color: t.bg, symbolColor: t.symbol, height: 48 });
@@ -340,15 +338,6 @@ function killBackend() {
 // IPC: receive theme changes from renderer
 ipcMain.on("set-theme", (_event, isDark) => {
   applyTitleBarTheme(isDark);
-});
-
-ipcMain.on("set-media-expanded", (_event, expanded) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (expanded) {
-    mainWindow.setTitleBarOverlay({ color: "#000000", symbolColor: "#FFFFFF", height: 48 });
-  } else {
-    applyTitleBarTheme(currentIsDark);
-  }
 });
 
 ipcMain.handle("get-startup-status", () => lastStartupStatus);
