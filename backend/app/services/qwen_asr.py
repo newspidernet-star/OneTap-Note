@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Transcript, TranscriptSegment
 from app.services.crypto import get_secret
-from app.services.tunnel import resolve_public_base_url
+from app.services.tunnel import reset_tunnel, resolve_public_base_url
 
 FUNASR_MODEL = "fun-asr"
 logger = logging.getLogger("smart_scribe")
@@ -187,9 +187,12 @@ def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> 
         except ValueError as e:
             last_err = e
             if "FILE_DOWNLOAD_FAILED" in str(e) and attempt < max_attempts - 1:
-                logger.warning("ASR FILE_DOWNLOAD_FAILED (attempt %d/%d), retrying in 5s...",
+                logger.warning("ASR FILE_DOWNLOAD_FAILED (attempt %d/%d), rebuilding tunnel and retrying...",
                                attempt + 1, max_attempts)
-                time.sleep(5)
+                if not get_settings().public_base_url:
+                    reset_tunnel()
+                    public_url = _public_url_for_local_file(mp3_path)
+                time.sleep(2)
                 continue
             raise
     else:

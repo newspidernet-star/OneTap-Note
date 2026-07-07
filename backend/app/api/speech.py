@@ -79,18 +79,21 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
                 finally:
                     db2.close()
                 continue
+            public_msg = msg
+            if "FILE_DOWNLOAD_FAILED" in msg:
+                public_msg = "语音服务暂时无法读取音频文件，已自动重试。请稍后再试或检查网络代理。"
             db2 = session_factory()
             try:
                 sess = db2.query(SessionModel).filter_by(id=session_id).first()
                 if sess:
                     sess.status = "failed"
-                    sess.error_message = msg[:500]
+                    sess.error_message = public_msg[:500]
                     sess.updated_at = datetime.now(timezone.utc).isoformat()
                     db2.commit()
             finally:
                 db2.close()
-            fail_progress(session_id, msg)
-            raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
+            fail_progress(session_id, public_msg)
+            raise HTTPException(status_code=500, detail=public_msg)
 
     db2 = session_factory()
     try:

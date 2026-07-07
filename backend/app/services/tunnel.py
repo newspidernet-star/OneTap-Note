@@ -14,6 +14,16 @@ _TUNNEL_URL: Optional[str] = None
 _PROC: Optional[subprocess.Popen] = None
 _LOCK = threading.Lock()
 _URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.IGNORECASE)
+_RESERVED_HOSTS = {"api.trycloudflare.com", "www.trycloudflare.com"}
+
+
+def _extract_quick_tunnel_url(text: str) -> str | None:
+    for match in _URL_RE.finditer(text):
+        url = match.group(0).rstrip("/")
+        host = url.removeprefix("https://").lower()
+        if host not in _RESERVED_HOSTS:
+            return url
+    return None
 
 
 def _read_url(stream, out: dict) -> None:
@@ -22,9 +32,9 @@ def _read_url(stream, out: dict) -> None:
         logger.debug("[cloudflared] %s", text.rstrip())
         if out.get("url"):
             continue
-        m = _URL_RE.search(text)
-        if m:
-            out["url"] = m.group(0)
+        url = _extract_quick_tunnel_url(text)
+        if url:
+            out["url"] = url
 
 
 def _wait_until_reachable(url: str, timeout: float = 15.0) -> None:
@@ -37,8 +47,9 @@ def _wait_until_reachable(url: str, timeout: float = 15.0) -> None:
     last_err = None
     while time.time() < deadline:
         try:
-            r = httpx.get(f"{url}/api/health", timeout=5, follow_redirects=True, proxy=None)
-            if r.status_code == 200:
+            with httpx.Client(timeout=5, follow_redirects=True, trust_env=False) as client:
+                r = client.get(f"{url}/static/media/__smart_scribe_tunnel_probe__")
+            if r.status_code in {200, 404}:
                 logger.info("tunnel readiness check passed: %s", url)
                 return
         except Exception as e:
@@ -105,6 +116,22 @@ def start_tunnel(port: int | None = None, timeout: float = 40.0) -> str:
 
 def get_tunnel_url() -> Optional[str]:
     return _TUNNEL_URL
+
+
+def reset_tunnel() -> None:
+    global _TUNNEL_URL, _PROC
+    with _LOCK:
+        if _PROC and _PROC.poll() is None:
+            try:
+                _PROC.terminate()
+                _PROC.wait(timeout=3)
+            except Exception:
+                try:
+                    _PROC.kill()
+                except Exception:
+                    pass
+        _PROC = None
+        _TUNNEL_URL = None
 
 
 def resolve_public_base_url() -> Optional[str]:
