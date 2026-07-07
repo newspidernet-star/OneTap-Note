@@ -36,6 +36,11 @@ type MediaExpandedProps = {
   sessionId?: string;
   materialId?: number;
   onFrameCaptured?: (data?: any) => void;
+  // Shared pick state with parent (AudioPlayer) so small & fullscreen stay in sync
+  pickedFrames?: number[];
+  setPickedFrames?: React.Dispatch<React.SetStateAction<number[]>>;
+  pickMode?: boolean;
+  setPickMode?: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const formatTime = (seconds = 0) => {
@@ -55,6 +60,10 @@ export default function MediaExpanded({
   sessionId,
   materialId,
   onFrameCaptured,
+  pickedFrames: extPickedFrames,
+  setPickedFrames: extSetPickedFrames,
+  pickMode: extPickMode,
+  setPickMode: extSetPickMode,
 }: MediaExpandedProps) {
   const isVideo = type === "video";
   const isImage = type === "image";
@@ -68,12 +77,18 @@ export default function MediaExpanded({
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [pickMode, setPickMode] = useState(false);
-  const [pickedFrames, setPickedFrames] = useState<number[]>([]);
+  const [localPickedFrames, setLocalPickedFrames] = useState<number[]>([]);
+  const [localPickMode, setLocalPickMode] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(100);
   const [prevVolume, setPrevVolume] = useState(100);
   const batchMut = useCaptureFramesBatch();
+
+  // Use external state if provided (sync with parent), else local
+  const pickedFrames = extPickedFrames ?? localPickedFrames;
+  const setPickedFrames = extSetPickedFrames ?? setLocalPickedFrames;
+  const pickMode = extPickMode ?? localPickMode;
+  const setPickMode = extSetPickMode ?? setLocalPickMode;
 
   const isProcessing = batchMut.isPending;
   const hasDuration = duration > 0 && Number.isFinite(duration);
@@ -379,7 +394,7 @@ export default function MediaExpanded({
                   {/* Right cluster: pick controls + exit. Always right-aligned. */}
                   {canCapture && (
                     <>
-                      {/* Pick mode toggle */}
+                      {/* Pick mode toggle — ml-auto pushes it + everything after to the right */}
                       <button
                         onClick={() => setPickMode((v) => !v)}
                         className={cn(
@@ -420,9 +435,10 @@ export default function MediaExpanded({
                         </PopoverContent>
                       </Popover>
 
-                      {/* Pick operation buttons — appear inline when pickMode, right-aligned */}
+                      {/* Pick operation buttons — same row, buttons position stable */}
                       {pickMode && (
                         <>
+                          {/* 标记当前帧 — fixed position, never moves */}
                           <button
                             onClick={addCurrentFrame}
                             disabled={isProcessing}
@@ -433,41 +449,39 @@ export default function MediaExpanded({
                             <span className="sm:hidden">标记</span>
                           </button>
 
-                          {/* Inline timestamp tags — scroll between 标记 and 清空 */}
-                          {pickedFrames.length > 0 && (
-                            <div
-                              ref={tagsScrollRef}
-                              className="flex max-w-[28%] flex-nowrap gap-1 overflow-x-auto scrollbar-hide sm:max-w-[36%]"
-                              style={{ minWidth: "0" }}
-                            >
-                              {pickedFrames.map((ts) => (
-                                <span
-                                  key={ts}
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2 py-1 text-xs font-mono text-amber-100"
+                          {/* Timestamp tags — flex-1 fills space between buttons, won't push them */}
+                          <div
+                            ref={tagsScrollRef}
+                            className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide"
+                          >
+                            {pickedFrames.map((ts) => (
+                              <span
+                                key={ts}
+                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/20 px-2 py-1 text-xs font-mono text-amber-100"
+                              >
+                                <button
+                                  onClick={(e) => seekToTimestamp(ts, e)}
+                                  className="hover:text-white"
+                                  title={`跳转到 ${formatTime(ts)}`}
                                 >
-                                  <button
-                                    onClick={(e) => seekToTimestamp(ts, e)}
-                                    className="hover:text-white"
-                                    title={`跳转到 ${formatTime(ts)}`}
-                                  >
-                                    {formatTime(ts)}
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeFrame(ts);
-                                    }}
-                                    disabled={isProcessing}
-                                    className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                                    aria-label={`移除 ${formatTime(ts)}`}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                                  {formatTime(ts)}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeFrame(ts);
+                                  }}
+                                  disabled={isProcessing}
+                                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                  aria-label={`移除 ${formatTime(ts)}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
 
+                          {/* 清空 — fixed right */}
                           {pickedFrames.length > 0 && (
                             <button
                               onClick={clearFrames}
@@ -477,6 +491,7 @@ export default function MediaExpanded({
                               清空
                             </button>
                           )}
+                          {/* 处理全部 — fixed right */}
                           <button
                             onClick={processPickedFrames}
                             disabled={pickedFrames.length === 0 || isProcessing}

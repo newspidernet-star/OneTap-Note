@@ -662,6 +662,10 @@ const AudioPlayer = ({
         sessionId={sessionId}
         materialId={materialId}
         onFrameCaptured={onFrameCaptured}
+        pickedFrames={pickedFrames}
+        setPickedFrames={setPickedFrames}
+        pickMode={pickMode}
+        setPickMode={setPickMode}
       />
     </AnimatePresence>
   );
