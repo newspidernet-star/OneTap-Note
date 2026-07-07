@@ -394,9 +394,11 @@ export default function MediaExpanded({
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  {/* Right cluster — flex-1 自适应宽度，标签区滚动，按钮位置稳定 */}
+                  {/* Right cluster — ml-auto 靠右，宽度随内容自适应（max-w-full 不超出行宽）。
+                      标签区 flex-1 min-w-0 内部滚动，标签少时容器窄（选帧靠右），
+                      标签多时容器变宽，到头后标签区出滚动条。 */}
                   {canCapture && (
-                    <div className="ml-auto flex h-8 min-w-0 max-w-full flex-1 items-center gap-1.5 overflow-hidden sm:max-w-[80%] sm:gap-2">
+                    <div className="ml-auto flex h-8 min-w-0 max-w-full items-center gap-1.5 overflow-hidden sm:gap-2">
                       {/* 选帧 toggle */}
                       <button
                         onClick={() => setPickMode((v) => !v)}
