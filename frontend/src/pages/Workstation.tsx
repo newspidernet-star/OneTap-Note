@@ -1092,14 +1092,6 @@ export default function Workstation() {
                     <FileText className="w-3.5 h-3.5" />
                     复制原文
                   </button>
-                  <button
-                    onClick={() => copyExport("evidence", "证据记录")}
-                    disabled={exportMdMut.isPending}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground/75 transition-colors hover:bg-muted disabled:opacity-50"
-                  >
-                    <ScanLine className="w-3.5 h-3.5" />
-                    复制证据
-                  </button>
                 </div>
 
                 <motion.div
@@ -1247,6 +1239,9 @@ export default function Workstation() {
                     }}
                     currentPreviewType={currentPreview?.type}
                     videoRef={videoRef}
+                    canCopyTimestamps={!!displaySummary}
+                    copyingTimestamps={exportMdMut.isPending}
+                    onCopyTimestamps={() => copyExport("evidence", "时间戳")}
                   />
                 </motion.aside>
               ) : null}
@@ -1293,6 +1288,9 @@ export default function Workstation() {
                   }}
                   currentPreviewType={currentPreview?.type}
                   videoRef={videoRef}
+                  canCopyTimestamps={!!displaySummary}
+                  copyingTimestamps={exportMdMut.isPending}
+                  onCopyTimestamps={() => copyExport("evidence", "时间戳")}
                 />
               </div>
             </motion.div>

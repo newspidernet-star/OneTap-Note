@@ -1,6 +1,12 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Film, Hand, Mic2, ImageIcon, Play } from "lucide-react";
+import { Copy, Film, Hand, ImageIcon, Menu, Mic2, Play } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface EvidenceBlock {
   id: string;
@@ -19,6 +25,9 @@ interface TimelinePanelProps {
   currentPreviewType?: string;
   videoRef?: React.RefObject<HTMLVideoElement>;
   className?: string;
+  onCopyTimestamps?: () => void;
+  canCopyTimestamps?: boolean;
+  copyingTimestamps?: boolean;
 }
 
 function fmtTimestamp(t: any): string {
@@ -36,6 +45,9 @@ export default function TimelinePanel({
   onBlockClick,
   onTimestampClick,
   className = "",
+  onCopyTimestamps,
+  canCopyTimestamps = false,
+  copyingTimestamps = false,
 }: TimelinePanelProps) {
   const isSpeech = (block: EvidenceBlock) => block.type === "speech";
   const MATERIAL_TYPES = new Set(["video_frame", "image", "document", "screen"]);
@@ -69,7 +81,31 @@ export default function TimelinePanel({
           <Film className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <span className="truncate">时间线</span>
         </div>
-        <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">{blocks.length} 段</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">{blocks.length} 段</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="时间线菜单"
+                title="时间线菜单"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[150px]">
+              <DropdownMenuItem
+                disabled={!canCopyTimestamps || copyingTimestamps}
+                onSelect={onCopyTimestamps}
+                className="gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                复制时间戳
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <div className="col-span-full flex items-center gap-2 overflow-x-auto scrollbar-hide">
           <span className="h-6 px-2.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 text-foreground text-[11px] font-medium whitespace-nowrap">
