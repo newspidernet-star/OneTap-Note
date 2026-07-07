@@ -233,9 +233,18 @@ function requestCloseChoice() {
     return;
   }
   closePromptOpen = true;
-  mainWindow.show();
-  mainWindow.focus();
-  mainWindow.webContents.send("desktop-close-request");
+  if (mainWindow.isFullScreen()) {
+    mainWindow.once("leave-full-screen", () => {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send("desktop-close-request");
+    });
+    mainWindow.setFullScreen(false);
+  } else {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send("desktop-close-request");
+  }
 }
 
 function createWindow() {
