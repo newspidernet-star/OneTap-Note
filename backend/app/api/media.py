@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -15,7 +16,7 @@ from app.services.crypto import get_secret
 from app.services.frame_extractor import extract_frame_at
 from app.services.ocr import ocr_batch, ocr_image
 from app.services.pipeline import process_session
-from app.services.progress import fail_progress, finish_progress, get_progress, set_progress
+from app.services.progress import clear_progress, fail_progress, finish_progress, get_progress, set_progress
 from app.services.downloader import download
 from app.services.storage import classify_media, resolve_storage_path, save_upload, session_storage_dir
 
@@ -94,7 +95,10 @@ def list_sessions(client_id: str | None = None, db: Session = Depends(get_db)):
 @router.post("/api/sessions", response_model=SessionOut)
 async def create_session(body: SessionCreate, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc).isoformat()
+    latest_id = db.query(func.max(SessionModel.id)).scalar() or 0
+    next_id = max(int(time.time() * 1000), latest_id + 1)
     s = SessionModel(
+        id=next_id,
         title=body.title,
         status="created",
         created_at=now,
@@ -105,6 +109,7 @@ async def create_session(body: SessionCreate, db: Session = Depends(get_db)):
     db.add(s)
     db.commit()
     db.refresh(s)
+    clear_progress(s.id)
     return s
 
 
@@ -248,13 +253,19 @@ def _delete_session_impl(session_id: int, db: Session) -> dict:
     db.query(Summary).filter(Summary.session_id == session_id).delete(synchronize_session=False)
     db.delete(session)
     db.commit()
+    clear_progress(session_id)
 
     storage_dir = get_settings().storage_dir / f"session_{session_id}"
     if storage_dir.exists():
-        try:
-            shutil.rmtree(str(storage_dir))
-        except Exception as e:
-            logger.warning("delete_session rmtree failed for session %s: %s", session_id, e)
+        for attempt in range(3):
+            try:
+                shutil.rmtree(str(storage_dir))
+                break
+            except OSError as e:
+                if attempt == 2:
+                    logger.warning("delete_session rmtree failed for session %s: %s", session_id, e)
+                else:
+                    time.sleep(0.2 * (attempt + 1))
 
     return {"ok": True}
 

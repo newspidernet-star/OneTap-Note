@@ -6,6 +6,7 @@ from app.models.base import Base
 
 class Session(Base):
     __tablename__ = "sessions"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(200), default="Untitled")

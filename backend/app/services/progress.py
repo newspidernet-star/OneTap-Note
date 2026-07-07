@@ -58,6 +58,11 @@ def fail_progress(session_id: int, detail: str) -> None:
     _finish(session_id, "error", "处理失败", detail)
 
 
+def clear_progress(session_id: int) -> None:
+    with _lock:
+        _states.pop(session_id, None)
+
+
 def _finish(session_id: int, status: str, label: str, detail: str) -> None:
     now = time.time()
     with _lock:

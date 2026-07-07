@@ -3,10 +3,11 @@ import { DynamicIsland, DynamicIslandView } from "@/components/ui/be-ui-dynamic-
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { ProcessingProgress } from "@/lib/api";
+import { getFriendlyProgressMessage } from "@/lib/progress-copy";
 
 export type SummaryCTAState = "idle" | "loading" | "error" | "generated";
 
-const stages = ["接收素材", "准备", "转写", "证据关联", "生成初稿", "完整性检查"];
+const stages = ["拿到素材", "准备", "听写", "理清内容", "写笔记", "检查"];
 
 interface SummaryHeroCardProps {
   state?: SummaryCTAState;
@@ -34,6 +35,7 @@ export function SummaryHeroCard({
   const isError = state === "error";
   const isGenerated = state === "generated";
   const liveProgress = progress?.status === "processing" ? progress : null;
+  const friendlyMessage = liveProgress ? getFriendlyProgressMessage(liveProgress) : "";
 
   const buttonLabel = isError
     ? "重试生成"
@@ -102,7 +104,7 @@ export function SummaryHeroCard({
 
               {liveProgress && (
                 <div className="space-y-1 text-center">
-                  <p className="text-xs text-neutral-600 dark:text-primary-foreground/70">{liveProgress.detail}</p>
+                  <p className="text-xs text-neutral-600 dark:text-primary-foreground/70">{friendlyMessage}</p>
                   <p className="font-mono text-[11px] text-neutral-500 dark:text-primary-foreground/60">
                     当前 {formatDuration(liveProgress.stage_elapsed_seconds)} · 总计 {formatDuration(liveProgress.elapsed_seconds)}
                   </p>

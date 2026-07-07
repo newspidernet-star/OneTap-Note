@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.progress import finish_progress, get_progress, set_progress
+from app.services.progress import clear_progress, finish_progress, get_progress, set_progress
 
 
 def test_progress_tracks_stages_and_elapsed(monkeypatch):
@@ -28,3 +28,10 @@ async def test_progress_endpoint(client):
 
     assert response.status_code == 200
     assert response.json()["status"] == "idle"
+
+
+def test_clear_progress_removes_reused_session_state():
+    set_progress(777, "transcribe", "正在听写")
+    clear_progress(777)
+
+    assert get_progress(777)["status"] == "idle"

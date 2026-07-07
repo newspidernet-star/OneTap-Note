@@ -8,6 +8,16 @@ async def test_create_session(client):
     assert resp.json()["status"] == "created"
 
 
+async def test_deleted_session_id_is_not_reused(client):
+    first = await client.post("/api/sessions", json={"title": "旧会话"})
+    first_id = first.json()["id"]
+    deleted = await client.delete(f"/api/sessions/{first_id}")
+    second = await client.post("/api/sessions", json={"title": "新会话"})
+
+    assert deleted.status_code == 200
+    assert second.json()["id"] > first_id
+
+
 async def test_upload_and_list(client):
     s = await client.post("/api/sessions", json={"title": "T"})
     sid = s.json()["id"]

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Check, AlertCircle, Loader2, RefreshCw, X } from "lucide-react";
 import type { ProcessingProgress } from "@/lib/api";
+import { getFriendlyProgressMessage } from "@/lib/progress-copy";
 
 export type UploadStatus =
   | "idle"
@@ -45,7 +46,7 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
             {liveProgress && (
               <>
                 <p className="mt-1 max-w-[190px] text-[10px] leading-4 text-muted-foreground/70">
-                  {liveProgress.detail}
+                  {getFriendlyProgressMessage(liveProgress)}
                 </p>
                 <p className="mt-1 text-[11px] font-mono text-muted-foreground">
                   当前 {formatDuration(liveProgress.stage_elapsed_seconds)} · 总计 {formatDuration(liveProgress.elapsed_seconds)}

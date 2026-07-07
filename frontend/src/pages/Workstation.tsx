@@ -25,6 +25,7 @@ import {
   getGetEvidenceBlocksQueryKey,
   getGetSummaryResultQueryKey,
   getGetMaterialsQueryKey,
+  getProcessingProgressQueryKey,
   getListSessionsQueryKey,
   getGetSettingsQueryKey,
 } from "@/lib/api";
@@ -281,7 +282,17 @@ export default function Workstation() {
   });
   const { data: processingProgress } = useGetProcessingProgress(activeSessionId);
 
-  const createSessionMut = useCreateSession();
+  const createSessionMut = useCreateSession({
+    mutation: {
+      onSuccess: (created) => {
+        const sessionId = String(created.id);
+        queryClient.removeQueries({ queryKey: getGetMaterialsQueryKey(sessionId) });
+        queryClient.removeQueries({ queryKey: getGetEvidenceBlocksQueryKey(sessionId) });
+        queryClient.removeQueries({ queryKey: getGetSummaryResultQueryKey(sessionId) });
+        queryClient.removeQueries({ queryKey: getProcessingProgressQueryKey(sessionId) });
+      },
+    },
+  });
   const uploadMut = useUploadFile({
     mutation: {
       onError: (error: any) => setUploadError(error?.message || "上传失败"),
@@ -330,9 +341,11 @@ export default function Workstation() {
         processMut.reset();
         transcribeMut.reset();
         // 取消属于被删会话的查询
-        queryClient.cancelQueries({ queryKey: getGetMaterialsQueryKey(deleteTarget?.id || "") });
-        queryClient.cancelQueries({ queryKey: getGetEvidenceBlocksQueryKey(deleteTarget?.id || "") });
-        queryClient.cancelQueries({ queryKey: getGetSummaryResultQueryKey(deleteTarget?.id || "") });
+        const deletedSessionId = deleteTarget?.id || "";
+        queryClient.removeQueries({ queryKey: getGetMaterialsQueryKey(deletedSessionId) });
+        queryClient.removeQueries({ queryKey: getGetEvidenceBlocksQueryKey(deletedSessionId) });
+        queryClient.removeQueries({ queryKey: getGetSummaryResultQueryKey(deletedSessionId) });
+        queryClient.removeQueries({ queryKey: getProcessingProgressQueryKey(deletedSessionId) });
         queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
         setDeleteTarget(null);
       },
