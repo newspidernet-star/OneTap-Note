@@ -154,6 +154,13 @@ const AudioPlayer = ({
   const [pickedFrames, setPickedFrames] = useState<number[]>([]);
   const batchMut = useCaptureFramesBatch();
 
+  useEffect(() => {
+    (window as any).smartScribe?.setMediaExpanded?.(isExpanded);
+    return () => {
+      if (isExpanded) (window as any).smartScribe?.setMediaExpanded?.(false);
+    };
+  }, [isExpanded]);
+
   const getMedia = () => mediaRef.current;
 
   const syncTime = () => {
