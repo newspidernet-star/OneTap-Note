@@ -1,12 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Film, Hand, ImageIcon, Menu, Mic2, Play } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Copy, Film, Hand, ImageIcon, Mic2, Play } from "lucide-react";
 
 interface EvidenceBlock {
   id: string;
@@ -83,28 +77,17 @@ export default function TimelinePanel({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">{blocks.length} 段</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="时间线菜单"
-                title="时间线菜单"
-              >
-                <Menu className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[150px]">
-              <DropdownMenuItem
-                disabled={!canCopyTimestamps || copyingTimestamps}
-                onSelect={onCopyTimestamps}
-                className="gap-2"
-              >
-                <Copy className="h-4 w-4" />
-                复制时间戳
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            type="button"
+            disabled={!canCopyTimestamps || copyingTimestamps}
+            onClick={onCopyTimestamps}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="复制时间戳"
+            title="复制时间戳"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            <span className="max-sm:hidden">复制时间戳</span>
+          </button>
         </div>
 
         <div className="col-span-full flex items-center gap-2 overflow-x-auto scrollbar-hide">
