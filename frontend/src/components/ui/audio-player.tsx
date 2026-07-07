@@ -607,7 +607,17 @@ const AudioPlayer = ({
                                 key={ts}
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-mono text-amber-700 dark:text-amber-300"
                               >
-                                {formatTime(ts)}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (duration > 0) handleSeek((ts / duration) * 100);
+                                  }}
+                                  className="rounded-sm hover:text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-400/40 dark:hover:text-amber-100"
+                                  title={`跳转到 ${formatTime(ts)}`}
+                                  aria-label={`跳转到 ${formatTime(ts)}`}
+                                >
+                                  {formatTime(ts)}
+                                </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); removeFrame(ts); }}
                                   className="grid h-4 w-4 place-items-center rounded-full hover:bg-amber-400/30"
