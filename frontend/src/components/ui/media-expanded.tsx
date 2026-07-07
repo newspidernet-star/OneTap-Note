@@ -391,14 +391,16 @@ export default function MediaExpanded({
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
 
-                  {/* Right cluster: pick controls + exit. Always right-aligned. */}
+                  {/* Right cluster: pick controls + exit. The whole group is right-aligned.
+                      选帧 button sits at the left edge of this group and never moves
+                      because the group width grows to the LEFT (ml-auto), not pushing 选帧. */}
                   {canCapture && (
-                    <>
-                      {/* Pick mode toggle — ml-auto pushes it + everything after to the right */}
+                    <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+                      {/* Pick mode toggle — stable at left edge of right group */}
                       <button
                         onClick={() => setPickMode((v) => !v)}
                         className={cn(
-                          "ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors hover:bg-white/10",
+                          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors hover:bg-white/10",
                           pickMode && "bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/50",
                           !pickMode && "text-white/80"
                         )}
@@ -407,7 +409,7 @@ export default function MediaExpanded({
                         <span className="hidden sm:inline">{pickMode ? "选帧中" : "选帧"}</span>
                       </button>
 
-                      {/* Help popover — z-index fixed for fullscreen overlay */}
+                      {/* Help popover */}
                       <Popover>
                         <PopoverTrigger asChild>
                           <button
@@ -435,10 +437,9 @@ export default function MediaExpanded({
                         </PopoverContent>
                       </Popover>
 
-                      {/* Pick operation buttons — same row, buttons position stable */}
+                      {/* Pick operation buttons — follow 选帧 in the same row */}
                       {pickMode && (
                         <>
-                          {/* 标记当前帧 — fixed position, never moves */}
                           <button
                             onClick={addCurrentFrame}
                             disabled={isProcessing}
@@ -449,10 +450,10 @@ export default function MediaExpanded({
                             <span className="sm:hidden">标记</span>
                           </button>
 
-                          {/* Timestamp tags — flex-1 fills space between buttons, won't push them */}
+                          {/* Timestamp tags — scroll, capped width so it won't push 处理全部 off screen */}
                           <div
                             ref={tagsScrollRef}
-                            className="flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto scrollbar-hide"
+                            className="flex max-w-[30vw] min-w-0 flex-nowrap gap-1 overflow-x-auto scrollbar-hide sm:max-w-[36vw]"
                           >
                             {pickedFrames.map((ts) => (
                               <span
@@ -481,7 +482,6 @@ export default function MediaExpanded({
                             ))}
                           </div>
 
-                          {/* 清空 — fixed right */}
                           {pickedFrames.length > 0 && (
                             <button
                               onClick={clearFrames}
@@ -491,7 +491,6 @@ export default function MediaExpanded({
                               清空
                             </button>
                           )}
-                          {/* 处理全部 — fixed right */}
                           <button
                             onClick={processPickedFrames}
                             disabled={pickedFrames.length === 0 || isProcessing}
@@ -514,7 +513,7 @@ export default function MediaExpanded({
                           <span className="hidden sm:inline">退出全屏</span>
                         </button>
                       )}
-                    </>
+                    </div>
                   )}
 
                   {/* Exit fullscreen when no canCapture */}
