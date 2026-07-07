@@ -15,6 +15,21 @@ function toIntId(id: string): number {
   return n;
 }
 
+export interface ProcessingProgress {
+  session_id: number;
+  status: "idle" | "processing" | "done" | "error";
+  stage: string;
+  label: string;
+  detail: string;
+  elapsed_seconds: number;
+  stage_elapsed_seconds: number;
+  completed_stages: Array<{
+    stage: string;
+    label: string;
+    duration_seconds: number;
+  }>;
+}
+
 async function safeFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -101,6 +116,22 @@ export function useGetSummaryResult<TData = any, TError = unknown>(
     enabled: isRealSessionId(sessionId),
     retry: false,
     ...options?.query,
+  });
+}
+
+export const getProcessingProgressQueryKey = (sessionId: string) =>
+  [`/api/sessions/${sessionId}/progress`] as const;
+
+export function useGetProcessingProgress<TError = unknown>(
+  sessionId: string | null | undefined,
+) {
+  return useQuery<ProcessingProgress, TError>({
+    queryKey: getProcessingProgressQueryKey(sessionId || ""),
+    queryFn: ({ signal }) =>
+      safeFetch<ProcessingProgress>(`/api/sessions/${toIntId(sessionId!)}/progress`, { signal }),
+    enabled: isRealSessionId(sessionId),
+    retry: false,
+    refetchInterval: 1000,
   });
 }
 

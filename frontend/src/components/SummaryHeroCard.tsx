@@ -2,10 +2,11 @@ import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { DynamicIsland, DynamicIslandView } from "@/components/ui/be-ui-dynamic-island";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import type { ProcessingProgress } from "@/lib/api";
 
-type SummaryCTAState = "idle" | "loading" | "error" | "generated";
+export type SummaryCTAState = "idle" | "loading" | "error" | "generated";
 
-const stages = ["上传", "OCR", "转写", "匹配证据块", "生成知识笔记"];
+const stages = ["接收素材", "准备", "转写", "证据关联", "生成初稿", "完整性检查"];
 
 interface SummaryHeroCardProps {
   state?: SummaryCTAState;
@@ -15,6 +16,7 @@ interface SummaryHeroCardProps {
   onRegenerate?: () => void;
   disabled?: boolean;
   className?: string;
+  progress?: ProcessingProgress;
 }
 
 export function SummaryHeroCard({
@@ -25,11 +27,13 @@ export function SummaryHeroCard({
   onRegenerate,
   disabled = false,
   className,
+  progress,
 }: SummaryHeroCardProps) {
   const isMobile = useIsMobile();
   const isLoading = state === "loading";
   const isError = state === "error";
   const isGenerated = state === "generated";
+  const liveProgress = progress?.status === "processing" ? progress : null;
 
   const buttonLabel = isError
     ? "重试生成"
@@ -74,7 +78,7 @@ export function SummaryHeroCard({
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>{stages[currentStage] ?? "处理中"}</span>
+                    <span>{liveProgress?.label || stages[currentStage] || "处理中"}</span>
                   </>
                 ) : (
                   <>
@@ -93,10 +97,19 @@ export function SummaryHeroCard({
             <DynamicIslandView id="loading" className="hidden sm:flex w-[280px] flex-col gap-4 sm:w-[360px]">
               <div className="flex items-center justify-center gap-2 text-sm font-medium">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>{stages[currentStage] ?? "处理中"}</span>
+                <span>{liveProgress?.label || stages[currentStage] || "处理中"}</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-2">
+              {liveProgress && (
+                <div className="space-y-1 text-center">
+                  <p className="text-xs text-neutral-600 dark:text-primary-foreground/70">{liveProgress.detail}</p>
+                  <p className="font-mono text-[11px] text-neutral-500 dark:text-primary-foreground/60">
+                    当前 {formatDuration(liveProgress.stage_elapsed_seconds)} · 总计 {formatDuration(liveProgress.elapsed_seconds)}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-6 gap-2">
                 {stages.map((stage, index) => {
                   const active = index <= currentStage;
 
@@ -120,6 +133,11 @@ export function SummaryHeroCard({
                   );
                 })}
               </div>
+              {liveProgress && liveProgress.completed_stages.length > 0 && (
+                <p className="text-center text-[10px] text-neutral-500 dark:text-primary-foreground/60">
+                  {liveProgress.completed_stages.slice(-3).map(item => `${item.label} ${formatDuration(item.duration_seconds)}`).join(" · ")}
+                </p>
+              )}
             </DynamicIslandView>
           </DynamicIsland>
         </div>
@@ -132,4 +150,10 @@ export function SummaryHeroCard({
       </div>
     </section>
   );
+}
+
+function formatDuration(seconds: number) {
+  const value = Math.max(0, Math.floor(seconds || 0));
+  if (value < 60) return `${value}s`;
+  return `${Math.floor(value / 60)}m ${value % 60}s`;
 }

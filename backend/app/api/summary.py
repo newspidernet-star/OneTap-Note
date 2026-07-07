@@ -12,6 +12,7 @@ from app.schemas.summary import (
     KeyPointOut, MatchResponse, SummaryGenerateRequest, SummaryGenerateResponse, SummaryResultOut, VerificationOut,
 )
 from app.services.matcher import match_evidence
+from app.services.progress import fail_progress, finish_progress, set_progress
 from app.services.summarizer import (
     clear_summary, detect_unused_blocks, generate_summary, review_summary_completeness, save_summary, verify_citations,
 )
@@ -68,11 +69,13 @@ def run_match(session_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Session not found")
     _ensure_transcription_ready(session_id, db)
     try:
+        set_progress(session_id, "match", "正在整理证据关系", "关联语音、图片与用户手动补充")
         matches = match_evidence(session_id, db)
         session.error_message = None
         db.commit()
         return MatchResponse(pairs_count=len(matches))
     except Exception as e:
+        fail_progress(session_id, str(e))
         db.rollback()
         session = db.query(SessionModel).filter_by(id=session_id).first()
         if session:
@@ -90,6 +93,7 @@ def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db
         raise HTTPException(status_code=404, detail="Session not found")
     _ensure_transcription_ready(session_id, db)
     try:
+        set_progress(session_id, "generate", "正在生成知识笔记", "按内容类型组织结论、步骤与完整清单")
         had_summary = db.query(Summary).filter_by(session_id=session_id).first() is not None
         clear_summary(session_id, db)
         t0 = time.time()
@@ -97,6 +101,7 @@ def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db
         logger.info(f"[AI] session {session_id}: DeepSeek done, {time.time()-t0:.2f}s")
         review_started = time.time()
         try:
+            set_progress(session_id, "review", "正在检查笔记完整性", "核对遗漏、清单数量与无依据推断")
             result = review_summary_completeness(result, session_id, db)
             logger.info(
                 "[AI-REVIEW] session %s: completeness review done, revised=%s issues=%d, %.2fs",
@@ -112,6 +117,7 @@ def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db
                 review_error,
             )
         t1 = time.time()
+        set_progress(session_id, "finalize", "正在整理最终结果", "校验引用并生成标题")
         verification = verify_citations(result, session_id, db)
         result["_citation_valid"] = verification["valid"]
         result["_invalid_citations"] = verification["invalid_ids"]
@@ -138,8 +144,10 @@ def run_generate(session_id: int, body: SummaryGenerateRequest | None = None, db
         session.error_message = None
         session.updated_at = datetime.now(timezone.utc).isoformat()
         db.commit()
+        finish_progress(session_id, "知识笔记已生成")
         return SummaryGenerateResponse(status="completed")
     except Exception as e:
+        fail_progress(session_id, str(e))
         db.rollback()
         session = db.query(SessionModel).filter_by(id=session_id).first()
         if session:

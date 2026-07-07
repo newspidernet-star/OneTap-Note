@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Check, AlertCircle, Loader2, RefreshCw, X } from "lucide-react";
+import type { ProcessingProgress } from "@/lib/api";
 
 export type UploadStatus =
   | "idle"
@@ -12,6 +13,7 @@ interface Props {
   errorMessage?: string;
   onRetry?: () => void;
   onDismiss?: () => void;
+  progress?: ProcessingProgress;
 }
 
 const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
@@ -21,8 +23,9 @@ const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
   error: { label: "处理失败", accent: "text-red-400" },
 };
 
-export default function UploadProgress({ status, errorMessage, onRetry, onDismiss }: Props) {
+export default function UploadProgress({ status, errorMessage, onRetry, onDismiss, progress }: Props) {
   const info = statusMap[status];
+  const liveProgress = progress?.status === "processing" ? progress : null;
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 w-full min-h-[140px] max-md:min-h-[100px] rounded-2xl bg-card border-2 border-dashed border-border/60 select-none">
@@ -38,7 +41,17 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
           <ProgressIcon status={status} />
 
           <div className="text-center">
-            <p className={`text-sm font-semibold ${info.accent}`}>{info.label}</p>
+            <p className={`text-sm font-semibold ${info.accent}`}>{liveProgress?.label || info.label}</p>
+            {liveProgress && (
+              <>
+                <p className="mt-1 max-w-[190px] text-[10px] leading-4 text-muted-foreground/70">
+                  {liveProgress.detail}
+                </p>
+                <p className="mt-1 text-[11px] font-mono text-muted-foreground">
+                  当前 {formatDuration(liveProgress.stage_elapsed_seconds)} · 总计 {formatDuration(liveProgress.elapsed_seconds)}
+                </p>
+              </>
+            )}
             {status === "done" && (
               <p className="text-[11px] text-muted-foreground/70 mt-0.5">点击右侧「生成知识笔记」</p>
             )}
@@ -70,10 +83,25 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
               </div>
             </div>
           )}
+          {liveProgress && liveProgress.completed_stages.length > 0 && (
+            <div className="flex max-w-[200px] flex-wrap justify-center gap-1">
+              {liveProgress.completed_stages.slice(-3).map((stage) => (
+                <span key={`${stage.stage}-${stage.duration_seconds}`} className="rounded-md bg-foreground/5 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                  {stage.label} {formatDuration(stage.duration_seconds)}
+                </span>
+              ))}
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
     </div>
   );
+}
+
+function formatDuration(seconds: number) {
+  const value = Math.max(0, Math.floor(seconds || 0));
+  if (value < 60) return `${value}s`;
+  return `${Math.floor(value / 60)}m ${value % 60}s`;
 }
 
 function ProgressIcon({ status }: { status: UploadStatus }) {

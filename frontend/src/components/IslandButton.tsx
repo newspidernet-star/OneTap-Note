@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Check, AlertCircle, RefreshCw, Mic2, ArrowRight } from "lucide-react";
 import { SummaryHeroCard, type SummaryCTAState } from "@/components/SummaryHeroCard";
 import AudioPlayer from "@/components/ui/audio-player";
+import type { ProcessingProgress } from "@/lib/api";
 
 export type ButtonStatus =
   | "idle"
@@ -32,24 +33,38 @@ interface Props {
   sessionId?: string;
   materialId?: number;
   onFrameCaptured?: (data?: any) => void;
+  progress?: ProcessingProgress;
 }
 
 const stageIndex: Record<string, number> = {
   uploading: 0,
-  ocr: 1,
   transcribing: 2,
   matching: 3,
   summarizing: 4,
+};
+
+const progressStageIndex: Record<string, number> = {
+  upload: 0,
+  download: 0,
+  prepare: 1,
+  transcribe: 2,
+  match: 3,
+  generate: 4,
+  review: 5,
+  finalize: 5,
 };
 
 export default function IslandButton({
   status, generable, size = "large", onGenerate, onRegenerate, disabled = false,
   mediaUrl, mediaType, videoRef, errorMessage,
   onPrev, onNext, hasPrev, hasNext,
-  sessionId, materialId, onFrameCaptured,
+  sessionId, materialId, onFrameCaptured, progress,
 }: Props) {
   const hasMedia = !!(mediaUrl && mediaType);
   const isLarge = size === "large";
+  const currentStage = progress?.status === "processing"
+    ? (progressStageIndex[progress.stage] ?? stageIndex[status] ?? 0)
+    : (stageIndex[status] ?? 0);
 
   const isPipeline = ["uploading", "ocr", "transcribing", "matching", "summarizing"].includes(status);
   const showHeroCard = isLarge && (
@@ -82,11 +97,12 @@ export default function IslandButton({
           >
             <SummaryHeroCard
               state={heroState}
-              currentStage={stageIndex[status] ?? 0}
+              currentStage={currentStage}
               onGenerate={onGenerate}
               onRetry={onGenerate}
               onRegenerate={onRegenerate || onGenerate}
               disabled={disabled}
+              progress={progress}
             />
           </motion.div>
         )}

@@ -6,6 +6,7 @@ import {
   useListSessions,
   useGetEvidenceBlocks,
   useGetSummaryResult,
+  useGetProcessingProgress,
   useGenerateSummary,
   useGetMaterials,
   useCreateSession,
@@ -278,6 +279,7 @@ export default function Workstation() {
   const { data: summary } = useGetSummaryResult(activeSessionId, {
     query: { enabled: hasSession, queryKey: getGetSummaryResultQueryKey(activeSessionId), retry: false },
   });
+  const { data: processingProgress } = useGetProcessingProgress(activeSessionId);
 
   const createSessionMut = useCreateSession();
   const uploadMut = useUploadFile({
@@ -630,17 +632,28 @@ export default function Workstation() {
         : "idle";
 
   const isActiveSessionGenerating = generationSessionId === activeSessionId;
+  const progressButtonStatus: ButtonStatus | null = processingProgress?.status === "processing"
+    ? processingProgress.stage === "transcribe"
+      ? "transcribing"
+      : processingProgress.stage === "match"
+        ? "matching"
+        : ["generate", "review", "finalize"].includes(processingProgress.stage)
+          ? "summarizing"
+          : "uploading"
+    : null;
   const buttonStatus: ButtonStatus = generateError
     ? "error"
-    : isActiveSessionGenerating && matchMut.isPending
-      ? "matching"
-      : isActiveSessionGenerating && generateMutation.isPending
-        ? "summarizing"
-        : awaitingTranscription || transcribeMut.isPending
-          ? "transcribing"
-          : displaySummary
-            ? "done"
-            : "idle";
+    : progressButtonStatus
+      ? progressButtonStatus
+      : isActiveSessionGenerating && matchMut.isPending
+        ? "matching"
+        : isActiveSessionGenerating && generateMutation.isPending
+          ? "summarizing"
+          : awaitingTranscription || transcribeMut.isPending
+            ? "transcribing"
+            : displaySummary
+              ? "done"
+              : "idle";
 
   const canGenerate = !isMock && !generationSessionId && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
   const settingsByKey = useMemo(
@@ -753,6 +766,7 @@ export default function Workstation() {
                 <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <UploadProgress
                     status={uploadStatus}
+                    progress={processingProgress}
                     errorMessage={pipelineError}
                     onDismiss={() => setUploadError(null)}
                     onRetry={async () => {
@@ -1023,6 +1037,7 @@ export default function Workstation() {
               hasNext={hasNextMaterial}
               sessionId={activeSessionId}
               materialId={currentPreview?.id}
+              progress={processingProgress}
               onFrameCaptured={async (data?: any) => {
                 await refetchEvidence();
                 invalidateAll(activeSessionId);

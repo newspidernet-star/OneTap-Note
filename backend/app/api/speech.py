@@ -11,6 +11,7 @@ from app.models import Material, Session as SessionModel, Transcript, Transcript
 from app.schemas.speech import TranscriptOut, TranscribeResponse, TranscriptionSegmentOut
 from app.services.audio_extractor import prepare_audio
 from app.services.qwen_asr import transcribe
+from app.services.progress import fail_progress, finish_progress, set_progress
 
 logger = logging.getLogger("smart_scribe")
 
@@ -42,8 +43,14 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
     session.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
 
-    for material in candidates:
+    for material_index, material in enumerate(candidates, start=1):
         try:
+            set_progress(
+                session_id,
+                "transcribe",
+                "正在识别语音内容",
+                f"第 {material_index}/{len(candidates)} 个音视频素材",
+            )
             material.status = "transcribing"
             db.commit()
             audio_path = prepare_audio(material)
@@ -82,6 +89,7 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
                     db2.commit()
             finally:
                 db2.close()
+            fail_progress(session_id, msg)
             raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
 
     db2 = session_factory()
@@ -94,6 +102,8 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
             db2.commit()
     finally:
         db2.close()
+
+    finish_progress(session_id, "语音转写完成", "可以生成知识笔记")
 
     return TranscribeResponse(task_id="done", status="completed")
 

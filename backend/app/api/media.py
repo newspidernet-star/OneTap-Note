@@ -15,6 +15,7 @@ from app.services.crypto import get_secret
 from app.services.frame_extractor import extract_frame_at
 from app.services.ocr import ocr_batch, ocr_image
 from app.services.pipeline import process_session
+from app.services.progress import fail_progress, finish_progress, get_progress, set_progress
 from app.services.downloader import download
 from app.services.storage import classify_media, resolve_storage_path, save_upload, session_storage_dir
 
@@ -121,6 +122,13 @@ def heartbeat(session_id: int, body: dict | None = None, db: Session = Depends(g
     return {"ok": True, "last_seen_at": session.last_seen_at}
 
 
+@router.get("/api/sessions/{session_id}/progress")
+def processing_progress(session_id: int, db: Session = Depends(get_db)):
+    if not db.query(SessionModel.id).filter_by(id=session_id).first():
+        raise HTTPException(status_code=404, detail="Session not found")
+    return get_progress(session_id)
+
+
 @router.post("/api/media/upload", response_model=UploadResponse)
 async def upload_file(
     session_id: int = Form(...),
@@ -131,6 +139,7 @@ async def upload_file(
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    set_progress(session_id, "upload", "正在接收本地素材", file.filename or "")
     media_type = classify_media(file.filename, file.content_type)
     file_path = save_upload(file, session_id)
     m = Material(
@@ -169,6 +178,12 @@ def process_materials(session_id: int, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
+        set_progress(
+            session_id,
+            "prepare",
+            "正在准备素材",
+            "视频使用快速语音模式；图片与手动选帧仍会识别文字",
+        )
         pre_block_ids = {b.id for b in db.query(EvidenceBlock).filter_by(session_id=session_id).all()}
         t0 = time.time()
         result = process_session(session_id, db)
@@ -180,12 +195,15 @@ def process_materials(session_id: int, db: Session = Depends(get_db)):
         session.error_message = None
         session.updated_at = datetime.now(timezone.utc).isoformat()
         db.commit()
+        if not _has_pending_transcription(session_id, db):
+            finish_progress(session_id, "素材已就绪", "可以生成知识笔记")
         return {
             "frames_count": result.frames_count,
             "ocr_pages_count": result.ocr_pages_count,
             "evidence_block_ids": result.evidence_block_ids,
         }
     except Exception as e:
+        fail_progress(session_id, str(e))
         db.rollback()
         session = db.query(SessionModel).filter_by(id=session_id).first()
         if session:
@@ -396,6 +414,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    set_progress(session_id, "download", "正在下载链接素材", url)
 
     # 防重复：如果同一 URL 已经在这个会话里下载过，跳过
     from app.services.downloader import _extract_url
@@ -403,6 +422,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
     existing = db.query(Material).filter_by(session_id=session_id, original_url=clean_url).first()
     if existing:
         logger.info(f"[DL] session {session_id}: URL already downloaded (material {existing.id}), skipping")
+        finish_progress(session_id, "链接素材已存在", "已跳过重复下载")
         return {"materials": [MaterialOut(
             id=existing.id, type=existing.type, source=existing.source,
             status=existing.status, sort_order=existing.sort_order,
@@ -418,6 +438,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
         specs = download(url, session_id, cookie_path=cookie_path)
         logger.info(f"[DL] session {session_id}: downloaded {len(specs)} files, {time.time()-t0:.2f}s")
     except Exception as e:
+        fail_progress(session_id, str(e))
         _log.warning("Download failed for %s: %s", url, e, exc_info=True)
         raise HTTPException(status_code=400, detail=f"下载失败: {e}")
     existing_count = db.query(Material).filter_by(session_id=session_id).count()
