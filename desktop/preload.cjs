@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("smartScribe", {
   platform: process.platform,
   isDesktop: true,
   setTheme: (isDark) => ipcRenderer.send("set-theme", isDark),
+  setMediaExpanded: (expanded) => ipcRenderer.send("set-media-expanded", expanded),
   onStartupStatus: (callback) => {
     ipcRenderer.on("startup-status", (_event, payload) => callback(payload));
   },

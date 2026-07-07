@@ -154,6 +154,13 @@ const AudioPlayer = ({
   const [pickedFrames, setPickedFrames] = useState<number[]>([]);
   const batchMut = useCaptureFramesBatch();
 
+  useEffect(() => {
+    (window as any).smartScribe?.setMediaExpanded?.(isExpanded);
+    return () => {
+      if (isExpanded) (window as any).smartScribe?.setMediaExpanded?.(false);
+    };
+  }, [isExpanded]);
+
   const getMedia = () => mediaRef.current;
 
   const syncTime = () => {
@@ -596,18 +603,26 @@ const AudioPlayer = ({
                           </button>
                         </div>
 
-                        {pickedFrames.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">
-                            拖动播放头到要补帧的位置，点「标记当前帧」加入列表。
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5">
-                            {pickedFrames.map((ts) => (
+                        <div className="flex h-7 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-hide">
+                          {pickedFrames.length === 0 ? (
+                            <p className="shrink-0 text-xs text-muted-foreground">
+                              拖动播放头到要补帧的位置，点「标记当前帧」加入列表。
+                            </p>
+                          ) : (
+                            pickedFrames.map((ts) => (
                               <span
                                 key={ts}
-                                className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-mono text-amber-700 dark:text-amber-300"
+                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-amber-400/15 px-2 text-xs font-mono text-amber-700 dark:text-amber-300"
                               >
-                                {formatTime(ts)}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (duration > 0) handleSeek((ts / duration) * 100);
+                                  }}
+                                  title={`跳转到 ${formatTime(ts)}`}
+                                >
+                                  {formatTime(ts)}
+                                </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); removeFrame(ts); }}
                                   className="grid h-4 w-4 place-items-center rounded-full hover:bg-amber-400/30"
@@ -616,21 +631,21 @@ const AudioPlayer = ({
                                   <Trash2 className="h-3 w-3" />
                                 </button>
                               </span>
-                            ))}
-                          </div>
-                        )}
+                            ))
+                          )}
+                        </div>
 
-                        {pickedFrames.length > 0 && (
-                          <div className="mt-2 flex items-center justify-end gap-2 max-sm:justify-between">
-                            <button
+                        <div className="mt-2 flex h-8 items-center justify-end gap-2 max-sm:justify-between">
+                          <button
                               onClick={(e) => { e.stopPropagation(); setPickedFrames([]); }}
-                              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              disabled={pickedFrames.length === 0 || batchMut.isPending}
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-30"
                             >
                               清空
-                            </button>
-                            <button
+                          </button>
+                          <button
                               onClick={(e) => { e.stopPropagation(); processPickedFrames(); }}
-                              disabled={batchMut.isPending}
+                              disabled={pickedFrames.length === 0 || batchMut.isPending}
                               className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                             >
                               {batchMut.isPending ? (
@@ -638,9 +653,8 @@ const AudioPlayer = ({
                               ) : (
                                 <><Wand2 className="h-3.5 w-3.5" /> 处理全部（{pickedFrames.length}）</>
                               )}
-                            </button>
-                          </div>
-                        )}
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   )}
