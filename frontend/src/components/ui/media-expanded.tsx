@@ -398,7 +398,7 @@ export default function MediaExpanded({
                       标签区 flex-1 min-w-0 内部滚动，标签少时容器窄（选帧靠右），
                       标签多时容器变宽，到头后标签区出滚动条。 */}
                   {canCapture && (
-                    <div className="ml-auto flex h-8 min-w-0 max-w-full items-center gap-1.5 overflow-hidden sm:gap-2">
+                    <div className="ml-auto flex h-8 min-w-0 max-w-full items-center gap-1.5 overflow-x-hidden overflow-y-visible py-1 sm:gap-2">
                       {/* 选帧 toggle */}
                       <button
                         onClick={() => setPickMode((v) => !v)}
