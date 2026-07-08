@@ -699,12 +699,14 @@ export default function Workstation() {
     if (action !== "cancel") setRememberCloseChoice(false);
   };
 
+  const brandIcon = isDark ? "/icon-dark.png" : "/icon-light.png";
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
       <header className={`safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative ${isDesktop ? 'desktop-titlebar pr-[176px]' : ''}`}>
         <div className={`flex items-center gap-4 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-primary">
-            <Sparkles className="w-5 h-5" />
+            <img src={brandIcon} alt="" className="h-6 w-6 rounded-md object-cover shadow-sm" />
             <span className="font-bold tracking-tight">Smart Scribe</span>
           </div>
           <div className="w-px h-4 bg-border max-md:hidden" />

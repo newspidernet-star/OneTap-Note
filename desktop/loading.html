@@ -41,8 +41,13 @@
       place-items: center;
       border-radius: 12px;
       background: rgba(226, 234, 229, 0.10);
-      font-size: 22px;
-      color: #E2EAE5;
+      overflow: hidden;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+    }
+    .mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
     .brand-title {
       font-size: 24px;
@@ -120,7 +125,7 @@
 <body>
   <main class="shell">
     <section class="brand">
-      <div class="mark">✦</div>
+      <div class="mark"><img src="assets/icon-dark.png" alt="" /></div>
       <div class="brand-title">Smart Scribe</div>
     </section>
     <div class="eyebrow" id="mode">启动中</div>

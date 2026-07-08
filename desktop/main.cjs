@@ -255,15 +255,22 @@ function applyTitleBarTheme(isDark) {
   const t = isDark ? THEME.dark : THEME.light;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setTitleBarOverlay({ color: t.bg, symbolColor: t.symbol, height: 48 });
+    mainWindow.setIcon(createAppIcon(256, isDark));
+  }
+  if (tray) {
+    tray.setImage(createAppIcon(16, isDark));
   }
 }
 
-function getAppIconPath() {
+function getAppIconPath(isDark) {
+  const themedName = isDark === false ? "icon-light.png" : "icon-dark.png";
+  const themedPath = path.join(__dirname, "assets", themedName);
+  if (fs.existsSync(themedPath)) return themedPath;
   return path.join(__dirname, "assets", "icon.png");
 }
 
-function createAppIcon(size) {
-  const icon = nativeImage.createFromPath(getAppIconPath());
+function createAppIcon(size, isDark) {
+  const icon = nativeImage.createFromPath(getAppIconPath(isDark));
   if (!icon.isEmpty()) {
     return icon.resize({ width: size, height: size, quality: "best" });
   }
@@ -314,7 +321,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
     title: "Smart Scribe",
-    icon: createAppIcon(256),
+    icon: createAppIcon(256, true),
     show: false,
     autoHideMenuBar: true,
     backgroundColor: THEME.dark.bg,
@@ -357,7 +364,7 @@ function createWindow() {
 
 function createTray() {
   if (tray) return;
-  tray = new Tray(createAppIcon(16));
+  tray = new Tray(createAppIcon(16, true));
   tray.setToolTip("Smart Scribe");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "显示 Smart Scribe", click: () => showMainWindow() },
