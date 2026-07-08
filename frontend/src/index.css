@@ -246,6 +246,19 @@
 html, body, #root {
   height: 100%;
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.prose,
+.prose *,
+pre,
+code {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 @layer base {
