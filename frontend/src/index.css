@@ -420,3 +420,12 @@ code {
 .desktop-no-drag * {
   -webkit-app-region: no-drag;
 }
+
+.desktop-app-shell {
+  height: 100vh;
+}
+
+.desktop-app-shell.desktop-window-inset {
+  height: calc(100vh - 6px) !important;
+  margin-top: 6px;
+}

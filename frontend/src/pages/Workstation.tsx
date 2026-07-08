@@ -149,6 +149,7 @@ export default function Workstation() {
   const [appendPanelOpen, setAppendPanelOpen] = useState(false);
   const [showDesktopClosePrompt, setShowDesktopClosePrompt] = useState(false);
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
+  const [needsDesktopWindowInset, setNeedsDesktopWindowInset] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -165,6 +166,19 @@ export default function Workstation() {
       window.dispatchEvent(new Event("smart-scribe-close-overlays"));
       requestAnimationFrame(() => setShowDesktopClosePrompt(true));
     });
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    const api = (window as any).smartScribe;
+    const applyWindowState = (state: any) => {
+      setNeedsDesktopWindowInset(!!state?.isMaximized && !state?.isFullScreen);
+    };
+    const unsubscribe = api?.onWindowState?.(applyWindowState);
+    api?.getWindowState?.().then(applyWindowState).catch(() => {});
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
@@ -708,7 +722,7 @@ export default function Workstation() {
   const brandIcon = isDark ? "/icon-dark.png" : "/icon-light.png";
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
+    <div className={`desktop-app-shell flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans ${needsDesktopWindowInset ? 'desktop-window-inset' : ''}`}>
       <header className={`safe-area-top h-12 border-b border-border/40 bg-card flex items-center justify-between px-4 shrink-0 z-10 relative ${isDesktop ? 'desktop-titlebar pr-[176px]' : ''}`}>
         <div className={`flex items-center gap-4 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-primary">

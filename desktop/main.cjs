@@ -262,6 +262,21 @@ function applyTitleBarTheme(isDark) {
   }
 }
 
+function getWindowStatePayload() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { isMaximized: false, isFullScreen: false };
+  }
+  return {
+    isMaximized: mainWindow.isMaximized(),
+    isFullScreen: mainWindow.isFullScreen(),
+  };
+}
+
+function sendWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("window-state", getWindowStatePayload());
+}
+
 function getAppIconPath(isDark) {
   const themedName = isDark === false ? "icon-light.png" : "icon-dark.png";
   const themedPath = path.join(__dirname, "assets", themedName);
@@ -344,6 +359,10 @@ function createWindow() {
     console.error("[desktop] loading screen failed:", err);
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
+  mainWindow.webContents.on("did-finish-load", sendWindowState);
+  ["maximize", "unmaximize", "restore", "enter-full-screen", "leave-full-screen"].forEach((eventName) => {
+    mainWindow.on(eventName, sendWindowState);
+  });
 
   mainWindow.on("close", (event) => {
     if (isQuiting) return;
@@ -413,6 +432,7 @@ ipcMain.on("set-theme", (_event, isDark) => {
 
 ipcMain.handle("get-startup-status", () => lastStartupStatus);
 ipcMain.handle("get-close-preference", () => readClosePreference());
+ipcMain.handle("get-window-state", () => getWindowStatePayload());
 ipcMain.handle("set-close-preference", (_event, action) => {
   if (action === "tray" || action === "quit") writeClosePreference(action);
   else clearClosePreference();

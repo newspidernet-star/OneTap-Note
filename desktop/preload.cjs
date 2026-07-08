@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld("smartScribe", {
   chooseCloseAction: (action, options = {}) => ipcRenderer.send("desktop-close-action", { action, ...options }),
   getClosePreference: () => ipcRenderer.invoke("get-close-preference"),
   setClosePreference: (action) => ipcRenderer.invoke("set-close-preference", action),
+  getWindowState: () => ipcRenderer.invoke("get-window-state"),
+  onWindowState: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window-state", handler);
+    return () => ipcRenderer.removeListener("window-state", handler);
+  },
 });
