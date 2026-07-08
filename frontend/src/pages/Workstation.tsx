@@ -57,6 +57,8 @@ const MOCK_SUMMARY = {
   corrections: [] as any[],
 };
 
+const CLOSE_PREF_STORAGE_KEY = "smart_scribe_close_preference";
+
 const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: any; title: string; defaultOpen: boolean; children: React.ReactNode }) => {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
@@ -692,9 +694,15 @@ export default function Workstation() {
     await updateSettingsMut.mutateAsync({ settings: changed });
   };
 
-  const handleDesktopCloseAction = (action: "tray" | "quit" | "cancel") => {
+  const handleDesktopCloseAction = async (action: "tray" | "quit" | "cancel") => {
     setShowDesktopClosePrompt(false);
     const remember = action !== "cancel" && rememberCloseChoice;
+    if (remember) {
+      try {
+        localStorage.setItem(CLOSE_PREF_STORAGE_KEY, action);
+        await (window as any).smartScribe?.setClosePreference?.(action);
+      } catch {}
+    }
     (window as any).smartScribe?.chooseCloseAction?.(action, { remember });
     if (action !== "cancel") setRememberCloseChoice(false);
   };

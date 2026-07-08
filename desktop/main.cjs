@@ -13,6 +13,7 @@ let healthPollTimer = null;
 let isQuiting = false;
 let lastStartupStatus = null;
 let closePromptOpen = false;
+let closePreference = null;
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
@@ -61,27 +62,34 @@ function getClosePreferencePath() {
 }
 
 function readClosePreference() {
+  if (closePreference === "tray" || closePreference === "quit") return closePreference;
   try {
     const raw = fs.readFileSync(getClosePreferencePath(), "utf8");
     const pref = JSON.parse(raw);
-    return pref && (pref.action === "tray" || pref.action === "quit") ? pref.action : null;
+    closePreference = pref && (pref.action === "tray" || pref.action === "quit") ? pref.action : null;
+    return closePreference;
   } catch {
     return null;
   }
 }
 
 function writeClosePreference(action) {
+  if (action !== "tray" && action !== "quit") return;
+  closePreference = action;
   try {
     fs.mkdirSync(app.getPath("userData"), { recursive: true });
     fs.writeFileSync(getClosePreferencePath(), JSON.stringify({ action }, null, 2), "utf8");
+    console.log("[desktop] close preference saved:", action);
   } catch (err) {
     console.warn("[desktop] failed to save close preference:", err);
   }
 }
 
 function clearClosePreference() {
+  closePreference = null;
   try {
     fs.rmSync(getClosePreferencePath(), { force: true });
+    console.log("[desktop] close preference cleared");
   } catch (err) {
     console.warn("[desktop] failed to clear close preference:", err);
   }
@@ -385,6 +393,12 @@ ipcMain.on("set-theme", (_event, isDark) => {
 });
 
 ipcMain.handle("get-startup-status", () => lastStartupStatus);
+ipcMain.handle("get-close-preference", () => readClosePreference());
+ipcMain.handle("set-close-preference", (_event, action) => {
+  if (action === "tray" || action === "quit") writeClosePreference(action);
+  else clearClosePreference();
+  return readClosePreference();
+});
 
 ipcMain.on("desktop-close-action", (_event, payload) => {
   const action = typeof payload === "string" ? payload : payload && payload.action;
