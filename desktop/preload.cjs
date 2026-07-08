@@ -17,5 +17,5 @@ contextBridge.exposeInMainWorld("smartScribe", {
     ipcRenderer.on("desktop-close-request", handler);
     return () => ipcRenderer.removeListener("desktop-close-request", handler);
   },
-  chooseCloseAction: (action) => ipcRenderer.send("desktop-close-action", action),
+  chooseCloseAction: (action, options = {}) => ipcRenderer.send("desktop-close-action", { action, ...options }),
 });

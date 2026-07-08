@@ -18,6 +18,7 @@ const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
 const MIN_SPLASH_MS = 900;
+const CLOSE_PREF_FILE = "desktop-close-preference.json";
 
 // Use hex colors here. Windows titleBarOverlay may fall back to white with
 // some CSS color syntaxes, which makes the caption buttons look detached.
@@ -53,6 +54,37 @@ function sendStartupStatus(payload) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getClosePreferencePath() {
+  return path.join(app.getPath("userData"), CLOSE_PREF_FILE);
+}
+
+function readClosePreference() {
+  try {
+    const raw = fs.readFileSync(getClosePreferencePath(), "utf8");
+    const pref = JSON.parse(raw);
+    return pref && (pref.action === "tray" || pref.action === "quit") ? pref.action : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeClosePreference(action) {
+  try {
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.writeFileSync(getClosePreferencePath(), JSON.stringify({ action }, null, 2), "utf8");
+  } catch (err) {
+    console.warn("[desktop] failed to save close preference:", err);
+  }
+}
+
+function clearClosePreference() {
+  try {
+    fs.rmSync(getClosePreferencePath(), { force: true });
+  } catch (err) {
+    console.warn("[desktop] failed to clear close preference:", err);
+  }
 }
 
 function setupStatusFromLine(line) {
@@ -227,6 +259,17 @@ function createAppIcon(size) {
 
 function requestCloseChoice() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  const rememberedAction = readClosePreference();
+  if (rememberedAction === "tray") {
+    createTray();
+    mainWindow.hide();
+    return;
+  }
+  if (rememberedAction === "quit") {
+    isQuiting = true;
+    app.quit();
+    return;
+  }
   if (closePromptOpen) {
     mainWindow.show();
     mainWindow.focus();
@@ -298,6 +341,7 @@ function createTray() {
   tray.setToolTip("Smart Scribe");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "显示 Smart Scribe", click: () => showMainWindow() },
+    { label: "关闭时重新询问", click: () => clearClosePreference() },
     { type: "separator" },
     { label: "退出", click: () => { isQuiting = true; app.quit(); } },
   ]));
@@ -342,12 +386,16 @@ ipcMain.on("set-theme", (_event, isDark) => {
 
 ipcMain.handle("get-startup-status", () => lastStartupStatus);
 
-ipcMain.on("desktop-close-action", (_event, action) => {
+ipcMain.on("desktop-close-action", (_event, payload) => {
+  const action = typeof payload === "string" ? payload : payload && payload.action;
+  const remember = !!(payload && typeof payload === "object" && payload.remember);
   closePromptOpen = false;
   if (action === "tray") {
+    if (remember) writeClosePreference("tray");
     createTray();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
   } else if (action === "quit") {
+    if (remember) writeClosePreference("quit");
     isQuiting = true;
     app.quit();
   } else {

@@ -147,6 +147,7 @@ export default function Workstation() {
   const [creatingSession, setCreatingSession] = useState(false);
   const [appendPanelOpen, setAppendPanelOpen] = useState(false);
   const [showDesktopClosePrompt, setShowDesktopClosePrompt] = useState(false);
+  const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -693,7 +694,9 @@ export default function Workstation() {
 
   const handleDesktopCloseAction = (action: "tray" | "quit" | "cancel") => {
     setShowDesktopClosePrompt(false);
-    (window as any).smartScribe?.chooseCloseAction?.(action);
+    const remember = action !== "cancel" && rememberCloseChoice;
+    (window as any).smartScribe?.chooseCloseAction?.(action, { remember });
+    if (action !== "cancel") setRememberCloseChoice(false);
   };
 
   return (
@@ -1439,6 +1442,15 @@ export default function Workstation() {
                 </button>
               </div>
               <div className="space-y-3 px-5 py-5">
+                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/5">
+                  <input
+                    type="checkbox"
+                    checked={rememberCloseChoice}
+                    onChange={(e) => setRememberCloseChoice(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span>以后默认使用本次选择，不再提醒</span>
+                </label>
                 <button
                   onClick={() => handleDesktopCloseAction("tray")}
                   className="group flex w-full items-center justify-between rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-left transition-all hover:border-primary/35 hover:bg-primary/15"
