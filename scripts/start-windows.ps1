@@ -1,4 +1,4 @@
-﻿# Smart Scribe - Windows one-click start
+# One Tap Note - Windows one-click start
 # Entry: start-windows.bat (calls this); or run manually:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start-windows.ps1
 #
@@ -39,7 +39,7 @@ $NoBrowser = $env:SMART_SCRIBE_NO_BROWSER -eq '1'
 
 Write-Host ""
 Write-Host "  ================================================" -ForegroundColor Cyan
-Write-Host "    Smart Scribe  -  http://localhost:8000" -ForegroundColor Cyan
+Write-Host "    One Tap Note  -  http://localhost:8000" -ForegroundColor Cyan
 Write-Host "  ================================================" -ForegroundColor Cyan
 Write-Host ""
 if ($NoBrowser) {

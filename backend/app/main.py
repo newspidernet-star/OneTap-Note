@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
     # ephemeral=true 时启动后台清扫线程（本地默认 false，不扫）
     start_sweeper()
 
-    app = FastAPI(title="Smart Scribe", version="0.1.0")
+    app = FastAPI(title="One Tap Note", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

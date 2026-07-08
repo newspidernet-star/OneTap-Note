@@ -1,4 +1,4 @@
-﻿# Smart Scribe - Windows one-click setup
+# One Tap Note - Windows one-click setup
 # Entry: start-windows.bat (calls this on first run); or run manually:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup-windows.ps1
 
@@ -17,7 +17,7 @@ trap {
     exit 1
 }
 
-Write-Host "== Smart Scribe Windows Setup ==" -ForegroundColor Cyan
+Write-Host "== One Tap Note Windows Setup ==" -ForegroundColor Cyan
 
 # --- Auto-detect proxy (clash default port 7897) ---
 $proxy = $env:HTTPS_PROXY

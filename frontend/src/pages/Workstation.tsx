@@ -163,7 +163,7 @@ export default function Workstation() {
   useEffect(() => {
     if (!isDesktop) return;
     const unsubscribe = (window as any).smartScribe?.onCloseRequest?.(() => {
-      window.dispatchEvent(new Event("smart-scribe-close-overlays"));
+      window.dispatchEvent(new Event("one-tap-note-close-overlays"));
       requestAnimationFrame(() => setShowDesktopClosePrompt(true));
     });
     return () => {
@@ -190,10 +190,10 @@ export default function Workstation() {
   const queryClient2 = queryClient;
   const clientId = useMemo(() => {
     try {
-      let id = sessionStorage.getItem("smart_scribe_client_id");
+      let id = sessionStorage.getItem("one_tap_note_client_id");
       if (!id) {
         id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        sessionStorage.setItem("smart_scribe_client_id", id);
+        sessionStorage.setItem("one_tap_note_client_id", id);
       }
       return id;
     } catch { return "anonymous"; }
@@ -727,7 +727,7 @@ export default function Workstation() {
         <div className={`flex items-center gap-4 ${isDesktop ? 'desktop-no-drag' : ''}`}>
           <div className="flex items-center gap-2 text-primary">
             <img src={brandIcon} alt="" className="h-6 w-6 rounded-md object-cover shadow-sm" />
-            <span className="font-bold tracking-tight">Smart Scribe</span>
+            <span className="font-bold tracking-tight">One Tap Note</span>
           </div>
           <div className="w-px h-4 bg-border max-md:hidden" />
           <div className="relative w-64 max-md:hidden">
@@ -1488,7 +1488,7 @@ export default function Workstation() {
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-foreground">关闭 Smart Scribe？</h3>
+                    <h3 className="text-base font-semibold text-foreground">关闭 One Tap Note？</h3>
                     <p className="text-xs text-muted-foreground">可以先收进托盘，下一次打开会更快。</p>
                   </div>
                 </div>

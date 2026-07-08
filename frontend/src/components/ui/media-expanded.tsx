@@ -102,12 +102,12 @@ export default function MediaExpanded({
     const handleDesktopClose = () => closeForDesktopPrompt();
     if (isOpen) {
       window.addEventListener("keydown", handleEsc);
-      window.addEventListener("smart-scribe-close-overlays", handleDesktopClose);
+      window.addEventListener("one-tap-note-close-overlays", handleDesktopClose);
       document.body.style.overflow = "hidden";
     }
     return () => {
       window.removeEventListener("keydown", handleEsc);
-      window.removeEventListener("smart-scribe-close-overlays", handleDesktopClose);
+      window.removeEventListener("one-tap-note-close-overlays", handleDesktopClose);
       document.body.style.overflow = "";
     };
   }, [isOpen]);

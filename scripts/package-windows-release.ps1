@@ -1,4 +1,4 @@
-# Smart Scribe - package Windows release zip
+# One Tap Note - package Windows release zip
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows-release.ps1
 
 $ErrorActionPreference = "Stop"
@@ -6,8 +6,8 @@ $ErrorActionPreference = "Stop"
 $ScriptsDir = $PSScriptRoot
 $ProjectRoot = Split-Path $ScriptsDir -Parent
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$PackageDir = Join-Path $ReleaseDir "Smart-Scribe-Windows"
-$ZipPath = Join-Path $ReleaseDir "Smart-Scribe-Windows.zip"
+$PackageDir = Join-Path $ReleaseDir "One-Tap-Note-Windows"
+$ZipPath = Join-Path $ReleaseDir "One-Tap-Note-Windows.zip"
 
 function Copy-Tree($Source, $Destination, $ExcludeDirs, $ExcludeFiles) {
     if (-not (Test-Path $Source)) { return }
@@ -35,8 +35,8 @@ function Copy-Tree($Source, $Destination, $ExcludeDirs, $ExcludeFiles) {
 Write-Host "Building root desktop exe..." -ForegroundColor Cyan
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "desktop\build-exe.ps1")
 
-if (-not (Test-Path (Join-Path $ProjectRoot "Smart Scribe.exe"))) {
-    throw "Smart Scribe.exe was not created."
+if (-not (Test-Path (Join-Path $ProjectRoot "One Tap Note.exe"))) {
+    throw "One Tap Note.exe was not created."
 }
 
 if (Test-Path $PackageDir) {
@@ -51,7 +51,7 @@ New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
 
 Write-Host "Copying desktop runtime..." -ForegroundColor Cyan
 $runtimeItems = @(
-    "Smart Scribe.exe",
+    "One Tap Note.exe",
     "locales",
     "resources",
     "chrome_100_percent.pak",

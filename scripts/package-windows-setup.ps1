@@ -1,4 +1,4 @@
-# Smart Scribe - package Windows Setup.exe
+# One Tap Note - package Windows Setup.exe
 # Usage:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows-setup.ps1
 
@@ -11,7 +11,7 @@ $DesktopDir = Join-Path $ProjectRoot "desktop"
 $DistDir = Join-Path $DesktopDir "dist-installer"
 $BuilderCacheDir = Join-Path $ProjectRoot ".cache\electron-builder"
 
-Write-Host "== Smart Scribe Setup.exe build ==" -ForegroundColor Cyan
+Write-Host "== One Tap Note Setup.exe build ==" -ForegroundColor Cyan
 
 $commit = git -C $ProjectRoot rev-parse --short HEAD
 Write-Host "Commit: $commit" -ForegroundColor DarkGray
@@ -80,7 +80,7 @@ Push-Location $DesktopDir
 npm run dist
 Pop-Location
 
-$setup = Get-ChildItem $DistDir -Filter "Smart-Scribe-Setup-*.exe" -File | Select-Object -First 1
+$setup = Get-ChildItem $DistDir -Filter "One-Tap-Note-Setup-*.exe" -File | Select-Object -First 1
 if (-not $setup) {
     throw "Setup.exe was not created."
 }

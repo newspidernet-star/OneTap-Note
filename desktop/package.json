@@ -1,5 +1,5 @@
 {
-  "name": "smart-scribe-desktop",
+  "name": "one-tap-note-desktop",
   "version": "0.2.1",
   "private": true,
   "main": "main.cjs",
@@ -13,9 +13,9 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.smartscribe.app",
-    "productName": "Smart Scribe",
-    "artifactName": "Smart-Scribe-Setup-${version}.${ext}",
+    "appId": "com.onetapnote.app",
+    "productName": "One Tap Note",
+    "artifactName": "One-Tap-Note-Setup-${version}.${ext}",
     "directories": {
       "output": "dist-installer"
     },
@@ -94,7 +94,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Smart Scribe",
+      "shortcutName": "One Tap Note",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
     }

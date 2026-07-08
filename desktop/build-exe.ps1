@@ -1,4 +1,4 @@
-﻿# Smart Scribe - build portable exe (bypasses electron-builder winCodeSign issue)
+# One Tap Note - build portable exe (bypasses electron-builder winCodeSign issue)
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File desktop\build-exe.ps1
 
 $ErrorActionPreference = "Stop"
@@ -13,10 +13,10 @@ if (-not (Test-Path $ElectronDist)) {
     exit 1
 }
 
-Write-Host "Building Smart Scribe.exe..." -ForegroundColor Cyan
+Write-Host "Building One Tap Note.exe..." -ForegroundColor Cyan
 
 $AppDir = Join-Path $OutDir "resources\app"
-$ExePath = Join-Path $OutDir "Smart Scribe.exe"
+$ExePath = Join-Path $OutDir "One Tap Note.exe"
 
 # If exe already exists, just update the app files (avoids locked-DLL issue)
 if (Test-Path $ExePath) {

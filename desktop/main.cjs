@@ -1,4 +1,4 @@
-﻿// Smart Scribe - Electron main process
+// One Tap Note - Electron main process
 
 const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } = require("electron");
 const { spawn, exec } = require("node:child_process");
@@ -133,12 +133,12 @@ function runSetupScript(root) {
     const setupScript = path.join(root, "scripts", "setup-windows.ps1");
     try {
       fs.mkdirSync(app.getPath("userData"), { recursive: true });
-      fs.writeFileSync(getSetupLogPath(), `Smart Scribe setup log\nRoot: ${root}\nStarted: ${new Date().toISOString()}\n\n`, "utf8");
+      fs.writeFileSync(getSetupLogPath(), `One Tap Note setup log\nRoot: ${root}\nStarted: ${new Date().toISOString()}\n\n`, "utf8");
     } catch {}
     sendStartupStatus({
       mode: "install",
       title: "准备安装",
-      detail: "正在检查 Smart Scribe 运行环境",
+      detail: "正在检查 One Tap Note 运行环境",
       progress: 3,
     });
     const child = spawn(
@@ -177,7 +177,7 @@ async function ensureInstalled(root) {
   sendStartupStatus({
     mode: "install",
     title: "首次安装",
-    detail: "正在为 Smart Scribe 准备运行环境，可能需要几分钟",
+    detail: "正在为 One Tap Note 准备运行环境，可能需要几分钟",
     progress: 0,
   });
   try {
@@ -185,7 +185,7 @@ async function ensureInstalled(root) {
   } catch (err) {
     const logPath = getSetupLogPath();
     const tail = getLastSetupLogLines(10);
-    dialog.showErrorBox("Smart Scribe - 安装失败",
+    dialog.showErrorBox("One Tap Note - 安装失败",
       "依赖安装失败：\n" + err.message +
       "\n\n日志位置：\n" + logPath +
       (tail ? "\n\n最后几行日志：\n" + tail : "") +
@@ -335,7 +335,7 @@ function requestCloseChoice() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 860, minWidth: 980, minHeight: 640,
-    title: "Smart Scribe",
+    title: "One Tap Note",
     icon: createAppIcon(256, true),
     show: false,
     autoHideMenuBar: true,
@@ -384,9 +384,9 @@ function createWindow() {
 function createTray() {
   if (tray) return;
   tray = new Tray(createAppIcon(16, true));
-  tray.setToolTip("Smart Scribe");
+  tray.setToolTip("One Tap Note");
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "显示 Smart Scribe", click: () => showMainWindow() },
+    { label: "显示 One Tap Note", click: () => showMainWindow() },
     { label: "关闭时重新询问", click: () => clearClosePreference() },
     { type: "separator" },
     { label: "退出", click: () => { isQuiting = true; app.quit(); } },
@@ -484,7 +484,7 @@ app.whenReady().then(async () => {
     try {
       await waitForHealth();
     } catch (err) {
-      dialog.showErrorBox("Smart Scribe - 启动失败",
+      dialog.showErrorBox("One Tap Note - 启动失败",
         "后端服务未能启动：\n" + err.message + "\n\n请尝试双击 start-windows.bat 启动，或检查日志。");
       killBackend();
       app.quit();

@@ -1,21 +1,21 @@
 @echo off
-title Smart Scribe Desktop
+title One Tap Note Desktop
 cd /d "%~dp0"
 
 REM Priority 1: use root exe if it exists
-if exist "Smart Scribe.exe" (
-    start "" "Smart Scribe.exe"
+if exist "One Tap Note.exe" (
+    start "" "One Tap Note.exe"
     exit
 )
 
 REM Priority 2: use desktop/dist exe if it exists
-if exist "desktop\dist\Smart-Scribe\Smart Scribe.exe" (
-    start "" "desktop\dist\Smart-Scribe\Smart Scribe.exe"
+if exist "desktop\dist\One-Tap-Note\One Tap Note.exe" (
+    start "" "desktop\dist\One-Tap-Note\One Tap Note.exe"
     exit
 )
 
 REM Priority 3: no exe found, build one automatically
-echo Smart Scribe.exe not found, building it now (first time only)...
+echo One Tap Note.exe not found, building it now (first time only)...
 echo.
 
 REM Ensure Electron is installed
@@ -38,12 +38,12 @@ REM Build the exe
 powershell -NoProfile -ExecutionPolicy Bypass -File desktop\build-exe.ps1
 if errorlevel 1 (
     echo.
-    echo Failed to build Smart Scribe.exe.
+    echo Failed to build One Tap Note.exe.
     pause
     exit /b 1
 )
 
 REM Launch the freshly built exe
 echo.
-echo Starting Smart Scribe...
-start "" "Smart Scribe.exe"
+echo Starting One Tap Note...
+start "" "One Tap Note.exe"

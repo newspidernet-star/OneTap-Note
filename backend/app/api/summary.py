@@ -235,10 +235,10 @@ def _frontmatter(title: str, created: str, kind: str) -> list[str]:
     if created:
         lines.append(f"date: {created}")
     lines.extend([
-        "source: smart-scribe",
+        "source: one-tap-note",
         f"type: {kind}",
         "tags:",
-        "  - smart-scribe",
+        "  - one-tap-note",
         "  - video-note",
         "---",
         "",

@@ -1,4 +1,4 @@
-// Smart Scribe - Electron preload script
+// One Tap Note - Electron preload script
 // Exposes a minimal API to the renderer for theme + desktop detection.
 
 const { contextBridge, ipcRenderer } = require("electron");
