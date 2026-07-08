@@ -1,12 +1,12 @@
 {
   "name": "smart-scribe-desktop",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "main": "main.cjs",
   "scripts": {
     "dev": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -15,8 +15,9 @@
   "build": {
     "appId": "com.smartscribe.app",
     "productName": "Smart Scribe",
+    "artifactName": "Smart-Scribe-Setup-${version}.${ext}",
     "directories": {
-      "output": "dist"
+      "output": "dist-installer"
     },
     "files": [
       "main.cjs",
@@ -24,8 +25,76 @@
       "loading.html",
       "assets/**"
     ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!storage/**",
+          "!.venv/**",
+          "!__pycache__/**",
+          "!*.db",
+          "!*.sqlite3",
+          "!*.log",
+          "!.env"
+        ]
+      },
+      {
+        "from": "../frontend",
+        "to": "frontend",
+        "filter": [
+          "**/*",
+          "!node_modules/**",
+          "!.vite/**",
+          "!*.log",
+          "!.tsbuildinfo"
+        ]
+      },
+      {
+        "from": "../scripts",
+        "to": "scripts"
+      },
+      {
+        "from": "../docs",
+        "to": "docs"
+      },
+      {
+        "from": "../README.md",
+        "to": "README.md"
+      },
+      {
+        "from": "../PRODUCT.md",
+        "to": "PRODUCT.md"
+      },
+      {
+        "from": "../docker-compose.yml",
+        "to": "docker-compose.yml"
+      },
+      {
+        "from": "../start-windows.bat",
+        "to": "start-windows.bat"
+      },
+      {
+        "from": "../start-desktop.bat",
+        "to": "start-desktop.bat"
+      }
+    ],
     "win": {
-      "target": "dir"
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Smart Scribe",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   }
 }

@@ -112,6 +112,9 @@ function getProjectRoot() {
         fs.existsSync(path.join(exeDir, "scripts", "setup-windows.ps1"))) {
       return exeDir;
     }
+    if (fs.existsSync(path.join(process.resourcesPath, "scripts", "setup-windows.ps1"))) {
+      return process.resourcesPath;
+    }
     const localRoot = path.resolve(exeDir, "..", "..", "..");
     if (fs.existsSync(path.join(localRoot, "backend", ".venv", "Scripts", "python.exe"))) {
       return localRoot;

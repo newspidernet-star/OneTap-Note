@@ -36,6 +36,9 @@ backend/.env
 新会话.txt
 conversations/
 /release/
+/.cache/
+desktop/dist/
+desktop/dist-installer/
 
 # Local desktop release build
 /Smart Scribe.exe
