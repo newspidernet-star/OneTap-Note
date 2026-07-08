@@ -19,7 +19,6 @@ const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
 const MIN_SPLASH_MS = 900;
-const CLOSE_PREF_FILE = "desktop-close-preference.json";
 
 // Use hex colors here. Windows titleBarOverlay may fall back to white with
 // some CSS color syntaxes, which makes the caption buttons look detached.
@@ -57,41 +56,40 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getClosePreferencePath() {
-  return path.join(app.getPath("userData"), CLOSE_PREF_FILE);
-}
-
 function readClosePreference() {
-  if (closePreference === "tray" || closePreference === "quit") return closePreference;
-  try {
-    const raw = fs.readFileSync(getClosePreferencePath(), "utf8");
-    const pref = JSON.parse(raw);
-    closePreference = pref && (pref.action === "tray" || pref.action === "quit") ? pref.action : null;
-    return closePreference;
-  } catch {
-    return null;
-  }
+  return closePreference === "tray" || closePreference === "quit" ? closePreference : null;
 }
 
 function writeClosePreference(action) {
   if (action !== "tray" && action !== "quit") return;
   closePreference = action;
-  try {
-    fs.mkdirSync(app.getPath("userData"), { recursive: true });
-    fs.writeFileSync(getClosePreferencePath(), JSON.stringify({ action }, null, 2), "utf8");
-    console.log("[desktop] close preference saved:", action);
-  } catch (err) {
-    console.warn("[desktop] failed to save close preference:", err);
-  }
+  console.log("[desktop] close preference remembered for this run:", action);
 }
 
 function clearClosePreference() {
   closePreference = null;
+  console.log("[desktop] close preference cleared for this run");
+}
+
+function getSetupLogPath() {
+  return path.join(app.getPath("userData"), "setup.log");
+}
+
+function appendSetupLog(chunk) {
   try {
-    fs.rmSync(getClosePreferencePath(), { force: true });
-    console.log("[desktop] close preference cleared");
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.appendFileSync(getSetupLogPath(), chunk, "utf8");
   } catch (err) {
-    console.warn("[desktop] failed to clear close preference:", err);
+    console.warn("[setup] failed to write setup log:", err);
+  }
+}
+
+function getLastSetupLogLines(count) {
+  try {
+    const raw = fs.readFileSync(getSetupLogPath(), "utf8");
+    return raw.trim().split(/\r?\n/).slice(-count).join("\n");
+  } catch {
+    return "";
   }
 }
 
@@ -133,6 +131,10 @@ function isBackendInstalled(root) {
 function runSetupScript(root) {
   return new Promise((resolve, reject) => {
     const setupScript = path.join(root, "scripts", "setup-windows.ps1");
+    try {
+      fs.mkdirSync(app.getPath("userData"), { recursive: true });
+      fs.writeFileSync(getSetupLogPath(), `Smart Scribe setup log\nRoot: ${root}\nStarted: ${new Date().toISOString()}\n\n`, "utf8");
+    } catch {}
     sendStartupStatus({
       mode: "install",
       title: "准备安装",
@@ -146,6 +148,7 @@ function runSetupScript(root) {
     );
     child.stdout.on("data", (data) => {
       const text = data.toString().trim();
+      appendSetupLog(data.toString());
       console.log("[setup] " + text);
       for (const line of text.split(/\r?\n/)) {
         const status = setupStatusFromLine(line);
@@ -154,6 +157,7 @@ function runSetupScript(root) {
     });
     child.stderr.on("data", (data) => {
       const text = data.toString().trim();
+      appendSetupLog(data.toString());
       console.error("[setup:error] " + text);
       if (text) sendStartupStatus({ mode: "install", detail: text });
     });
@@ -179,8 +183,13 @@ async function ensureInstalled(root) {
   try {
     await runSetupScript(root);
   } catch (err) {
+    const logPath = getSetupLogPath();
+    const tail = getLastSetupLogLines(10);
     dialog.showErrorBox("Smart Scribe - 安装失败",
-      "依赖安装失败：\n" + err.message + "\n\n请尝试手动运行 scripts\\setup-windows.ps1");
+      "依赖安装失败：\n" + err.message +
+      "\n\n日志位置：\n" + logPath +
+      (tail ? "\n\n最后几行日志：\n" + tail : "") +
+      "\n\n也可以手动运行 scripts\\setup-windows.ps1 复现。");
     app.quit();
   }
 }

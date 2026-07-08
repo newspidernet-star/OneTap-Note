@@ -57,8 +57,6 @@ const MOCK_SUMMARY = {
   corrections: [] as any[],
 };
 
-const CLOSE_PREF_STORAGE_KEY = "smart_scribe_close_preference";
-
 const CollapsibleCard = ({ icon: Icon, title, defaultOpen, children }: { icon: any; title: string; defaultOpen: boolean; children: React.ReactNode }) => {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
@@ -697,12 +695,6 @@ export default function Workstation() {
   const handleDesktopCloseAction = async (action: "tray" | "quit" | "cancel") => {
     setShowDesktopClosePrompt(false);
     const remember = action !== "cancel" && rememberCloseChoice;
-    if (remember) {
-      try {
-        localStorage.setItem(CLOSE_PREF_STORAGE_KEY, action);
-        await (window as any).smartScribe?.setClosePreference?.(action);
-      } catch {}
-    }
     (window as any).smartScribe?.chooseCloseAction?.(action, { remember });
     if (action !== "cancel") setRememberCloseChoice(false);
   };
@@ -1457,7 +1449,7 @@ export default function Workstation() {
                     onChange={(e) => setRememberCloseChoice(e.target.checked)}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>以后默认使用本次选择，不再提醒</span>
+                  <span>本次后台运行期间默认使用这个选择</span>
                 </label>
                 <button
                   onClick={() => handleDesktopCloseAction("tray")}

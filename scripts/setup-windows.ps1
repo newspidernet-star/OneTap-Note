@@ -4,6 +4,19 @@
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
+$LogDir = Join-Path $Root 'logs'
+$LogFile = Join-Path $LogDir 'setup-windows.log'
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+try { Start-Transcript -Path $LogFile -Force | Out-Null } catch {}
+
+trap {
+    Write-Host ""
+    Write-Host "Setup failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Log saved to: $LogFile" -ForegroundColor Yellow
+    try { Stop-Transcript | Out-Null } catch {}
+    exit 1
+}
+
 Write-Host "== Smart Scribe Windows Setup ==" -ForegroundColor Cyan
 
 # --- Auto-detect proxy (clash default port 7897) ---
@@ -23,9 +36,16 @@ function Update-Path {
 }
 function Ensure-Winget($PackageId, $TestCmd) {
     if (Get-Command $TestCmd -ErrorAction SilentlyContinue) { return }
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "winget not found. Please install/update App Installer from Microsoft Store, then rerun setup."
+    }
     Write-Host "Installing $PackageId ..." -ForegroundColor Yellow
     winget install $PackageId --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+    if ($LASTEXITCODE -ne 0) { throw "winget install failed for $PackageId (exit code $LASTEXITCODE)" }
     Update-Path
+    if (-not (Get-Command $TestCmd -ErrorAction SilentlyContinue)) {
+        throw "$PackageId installed but command '$TestCmd' is still unavailable. Restart Windows or install it manually, then rerun setup."
+    }
 }
 
 # --- 1. System dependencies ---
@@ -33,8 +53,12 @@ function Ensure-Winget($PackageId, $TestCmd) {
 $needPy31 = $true
 try { $null = py -3.11 --version 2>$null; if ($?) { $needPy31 = $false } } catch {}
 if ($needPy31) {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "winget not found. Please install/update App Installer from Microsoft Store, then rerun setup."
+    }
     Write-Host "Installing Python.Python.3.11 ..." -ForegroundColor Yellow
     winget install Python.Python.3.11 --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+    if ($LASTEXITCODE -ne 0) { throw "winget install failed for Python.Python.3.11 (exit code $LASTEXITCODE)" }
     Update-Path
 }
 try { Write-Host "Python: $(py -3.11 --version)" -ForegroundColor Green } catch { throw 'Python 3.11 install failed, try manually: winget install Python.Python.3.11' }
@@ -49,12 +73,16 @@ $pyExe = Join-Path $venv 'Scripts\python.exe'
 if (-not (Test-Path $pyExe)) {
     Write-Host "Creating venv backend\.venv ..." -ForegroundColor Yellow
     py -3.11 -m venv $venv
+    if ($LASTEXITCODE -ne 0) { throw "Failed to create backend virtual environment (exit code $LASTEXITCODE)" }
 }
 & $pyExe -m pip install --upgrade pip wheel | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip/wheel (exit code $LASTEXITCODE)" }
 Write-Host "Installing backend deps (Windows cloud-OCR subset)..." -ForegroundColor Yellow
 & $pyExe -m pip install -r (Join-Path $Root 'backend\requirements-windows.txt')
+if ($LASTEXITCODE -ne 0) { throw "Failed to install backend dependencies (exit code $LASTEXITCODE)" }
 Write-Host "Installing Playwright Chromium ..." -ForegroundColor Yellow
 & $pyExe -m playwright install chromium
+if ($LASTEXITCODE -ne 0) { throw "Failed to install Playwright Chromium (exit code $LASTEXITCODE)" }
 
 # --- 3. Frontend build ---
 $frontend = Join-Path $Root 'frontend'
@@ -62,9 +90,11 @@ $dist = Join-Path $frontend 'dist'
 if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
     Write-Host "npm install (frontend) ..." -ForegroundColor Yellow
     Push-Location $frontend; npm install; Pop-Location
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed for frontend (exit code $LASTEXITCODE)" }
 }
 Write-Host "Building frontend (npm run build) ..." -ForegroundColor Yellow
 Push-Location $frontend; npm run build; Pop-Location
+if ($LASTEXITCODE -ne 0) { throw "npm run build failed for frontend (exit code $LASTEXITCODE)" }
 if (-not (Test-Path (Join-Path $dist 'index.html'))) { throw 'Frontend build failed: frontend\dist\index.html not found' }
 
 # --- 4. .env ---
@@ -82,3 +112,4 @@ Write-Host ""
 Write-Host "== Setup Complete ==" -ForegroundColor Cyan
 Write-Host "Start: double-click start-windows.bat, or run scripts\start-windows.ps1" -ForegroundColor Green
 Write-Host "Then open http://localhost:8000 -> Settings page -> fill 3 API keys" -ForegroundColor Green
+try { Stop-Transcript | Out-Null } catch {}
