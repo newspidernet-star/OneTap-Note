@@ -232,6 +232,39 @@ Windows 桌面端基于 Electron。
 
 这部分是长期目标，不代表当前版本已经完整实现。当前版本先把“素材 -> 笔记 -> Obsidian”这条主链路做好。
 
+## 更远的最终形态
+
+我相信后面的应用会越来越全面地拥抱智能体。很多工具不会只以“打开一个软件、点一堆按钮”的形式存在，而是会变成智能体可以调用的能力。
+
+所以 Smart Scribe 的最终形态，不只是一个桌面应用，而是一个连接智能体和个人知识库的内化工具。
+
+它可以作为一个接口、一条工具链，帮助智能体完成这件事：
+
+```text
+任意链接 / 本地素材 / 截图 / 音频
+        -> 信息提取
+        -> 结构化清洗
+        -> 知识笔记
+        -> Obsidian / 个人知识库
+        -> 以后被智能体重新调用
+```
+
+也就是说，它要做的不是简单地“总结一个视频”，而是把短视频数据、媒体数据和零散素材，转化为可以进入个人知识系统的知识基础。
+
+更理想的画面是：
+
+```text
+刷到一个好视频
+-> 复制链接发给微信、桌面助手或任意智能体入口
+-> 智能体调用 Smart Scribe
+-> 自动完成下载、转写、整理、入库
+-> 返回一份摘要，或者静默沉淀到知识库
+```
+
+这就是我说的“链接级输入，一句话完成”。用户不需要关心背后是下载器、转写器、OCR、模板，还是 API。用户只需要把信息丢进去，剩下的由工具和智能体协作完成。
+
+从这个角度看，Smart Scribe 更像是一个“短视频数据基础 -> 知识基础”的转换层，也是一个让碎片信息内化为个人知识库数据的工具。
+
 ## 底层想法
 
 没有足够的积累，就很难有自己的表达。
@@ -267,15 +300,15 @@ SMART_SCRIBE_DASHSCOPE_WORKSPACE_ID=ws-xxx
 
 ### DeepSeek API Key
 
-![DeepSeek API Key 获取演示](docs/get-deepseek-token.gif)
+<img src="docs/get-deepseek-token.gif" alt="DeepSeek API Key 获取演示" width="720">
 
 ### DashScope API Key
 
-![DashScope API Key 获取演示](docs/get-dashscope-token.gif)
+<img src="docs/get-dashscope-token.gif" alt="DashScope API Key 获取演示" width="720">
 
 ### PaddleOCR Cloud Key
 
-![PaddleOCR Cloud Key 获取演示](docs/get-paddleocr-token.gif)
+<img src="docs/get-paddleocr-token.gif" alt="PaddleOCR Cloud Key 获取演示" width="720">
 
 ## 技术栈
 
