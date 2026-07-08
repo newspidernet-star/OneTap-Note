@@ -384,7 +384,7 @@ const AudioPlayer = ({
                 onEnded={handleEnded}
                 onClick={handleMediaClick}
                 onDoubleClick={handleMediaDoubleClick}
-                className="h-full w-full border-none object-cover"
+                className="h-full w-full border-none object-contain"
               />
             )}
 
