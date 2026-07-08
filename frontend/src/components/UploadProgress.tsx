@@ -27,9 +27,10 @@ const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
 export default function UploadProgress({ status, errorMessage, onRetry, onDismiss, progress }: Props) {
   const info = statusMap[status];
   const liveProgress = progress?.status === "processing" ? progress : null;
+  const lastCompletedStage = liveProgress?.completed_stages.at(-1);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 w-full min-h-[140px] max-md:min-h-[100px] rounded-2xl bg-card border-2 border-dashed border-border/60 select-none">
+    <div className="flex w-full min-h-[140px] max-md:min-h-[100px] items-center justify-center rounded-2xl border-2 border-dashed border-border/60 bg-card px-3 py-3 select-none">
       <AnimatePresence mode="wait">
         <motion.div
           key={status}
@@ -37,18 +38,18 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.25 }}
-          className="flex flex-col items-center gap-3"
+          className="flex w-full flex-col items-center gap-2"
         >
           <ProgressIcon status={status} />
 
-          <div className="text-center">
-            <p className={`text-sm font-semibold ${info.accent}`}>{liveProgress?.label || info.label}</p>
+          <div className="w-full text-center">
+            <p className={`truncate text-sm font-semibold ${info.accent}`}>{liveProgress?.label || info.label}</p>
             {liveProgress && (
               <>
-                <p className="mt-1 max-w-[190px] text-[10px] leading-4 text-muted-foreground/70">
+                <p className="mx-auto mt-1 max-w-[190px] truncate text-[10px] leading-4 text-muted-foreground/70">
                   {getFriendlyProgressMessage(liveProgress)}
                 </p>
-                <p className="mt-1 text-[11px] font-mono text-muted-foreground">
+                <p className="mt-0.5 text-[11px] font-mono text-muted-foreground">
                   当前 {formatDuration(liveProgress.stage_elapsed_seconds)} · 总计 {formatDuration(liveProgress.elapsed_seconds)}
                 </p>
               </>
@@ -84,13 +85,9 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
               </div>
             </div>
           )}
-          {liveProgress && liveProgress.completed_stages.length > 0 && (
-            <div className="flex max-w-[200px] flex-wrap justify-center gap-1">
-              {liveProgress.completed_stages.slice(-3).map((stage) => (
-                <span key={`${stage.stage}-${stage.duration_seconds}`} className="rounded-md bg-foreground/5 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                  {stage.label} {formatDuration(stage.duration_seconds)}
-                </span>
-              ))}
+          {lastCompletedStage && (
+            <div className="max-w-full truncate rounded-md bg-foreground/5 px-2 py-0.5 text-[9px] text-muted-foreground">
+              已完成 {lastCompletedStage.label} {formatDuration(lastCompletedStage.duration_seconds)}
             </div>
           )}
         </motion.div>
@@ -111,25 +108,25 @@ function ProgressIcon({ status }: { status: UploadStatus }) {
       <motion.div
         initial={{ scale: 0.6 }} animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 500, damping: 18 }}
-        className="w-10 h-10 rounded-xl border border-border/40 bg-foreground/5 flex items-center justify-center text-emerald-400"
+        className="w-9 h-9 rounded-xl border border-border/40 bg-foreground/5 flex items-center justify-center text-emerald-400"
       >
-        <Check className="w-5 h-5" strokeWidth={3} />
+        <Check className="w-4.5 h-4.5" strokeWidth={3} />
       </motion.div>
     );
   }
   if (status === "error") {
     return (
       <motion.div initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 18 }}
-        className="w-10 h-10 rounded-xl border border-red-400/30 bg-red-500/10 flex items-center justify-center text-red-400">
-        <AlertCircle className="w-5 h-5" />
+        className="w-9 h-9 rounded-xl border border-red-400/30 bg-red-500/10 flex items-center justify-center text-red-400">
+        <AlertCircle className="w-4.5 h-4.5" />
       </motion.div>
     );
   }
   if (status === "uploading") {
     return (
       <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut" }}
-        className="w-10 h-10 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary">
-        <Upload className="w-5 h-5" />
+        className="w-9 h-9 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary">
+        <Upload className="w-4.5 h-4.5" />
       </motion.div>
     );
   }
