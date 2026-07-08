@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, FileText, ArrowUp } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, FileText, ArrowUp, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import {
@@ -126,6 +126,7 @@ export default function Workstation() {
   const [justGeneratedSessionId, setJustGeneratedSessionId] = useState<string | null>(null);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [linkInput, setLinkInput] = useState("");
+  const [sessionSearch, setSessionSearch] = useState("");
   const [uploadRunning, setUploadRunning] = useState(false);
   const [processingSessionId, setProcessingSessionId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -231,6 +232,11 @@ export default function Workstation() {
     () => (sessions as any[]).map(s => ({ ...s, id: String(s.id) })),
     [sessions]
   );
+  const filteredSessions = useMemo(() => {
+    const q = sessionSearch.trim().toLowerCase();
+    if (!q) return realSessions;
+    return realSessions.filter(s => String(s.title || "").toLowerCase().includes(q));
+  }, [realSessions, sessionSearch]);
 
   useEffect(() => {
     if (realSessions.length > 0 && (isMock || !realSessions.some(s => s.id === activeSessionId))) {
@@ -710,19 +716,26 @@ export default function Workstation() {
             <span className="font-bold tracking-tight">Smart Scribe</span>
           </div>
           <div className="w-px h-4 bg-border max-md:hidden" />
-          <input
-            key={activeSession?.id || "mock"}
-            type="text"
-            defaultValue={activeSession?.title || ""}
-            onBlur={(e) => {
-              const newTitle = e.target.value.trim();
-              if (newTitle && activeSessionId && !isMock && newTitle !== activeSession?.title) {
-                renameMut.mutate({ sessionId: activeSessionId, title: newTitle });
-                queryClient.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
-              }
-            }}
-            className="bg-transparent border-none outline-none focus:ring-1 ring-primary rounded px-2 text-sm font-medium w-64 max-md:hidden"
-          />
+          <div className="relative w-64 max-md:hidden">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+            <input
+              type="search"
+              value={sessionSearch}
+              onChange={(e) => setSessionSearch(e.target.value)}
+              placeholder="搜索会话..."
+              className="h-8 w-full rounded-lg border border-border/70 bg-background/45 pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-primary/45 focus:bg-background focus:ring-1 focus:ring-primary/25"
+            />
+            {sessionSearch && (
+              <button
+                type="button"
+                onClick={() => setSessionSearch("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                aria-label="清空搜索"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`flex items-center gap-3 max-md:gap-1.5 ${isDesktop ? 'desktop-no-drag' : ''}`}>
@@ -903,7 +916,7 @@ export default function Workstation() {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            {realSessions.map(s => (
+            {filteredSessions.map(s => (
               <div key={s.id} className="group relative">
                 {renamingId === s.id ? (
                   <input
@@ -950,6 +963,11 @@ export default function Workstation() {
                 </button>
               </div>
             ))}
+            {sessionSearch.trim() && filteredSessions.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground/60">
+                没有找到匹配的会话
+              </div>
+            )}
             {sessionsFetching && realSessions.length === 0 && (
               <div className="px-3 py-2 text-xs text-muted-foreground/60 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> 加载中…</div>
             )}
@@ -1323,13 +1341,33 @@ export default function Workstation() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              <div className="relative mb-3">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                <input
+                  type="search"
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                  placeholder="搜索会话..."
+                  className="h-9 w-full rounded-lg border border-border/70 bg-background/45 pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-primary/45 focus:bg-background focus:ring-1 focus:ring-primary/25"
+                />
+                {sessionSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setSessionSearch("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                    aria-label="清空搜索"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <button onClick={() => { setActiveSessionId(MOCK_SESSION_ID); setShowMobileMenu(false); }}
                 className="hidden w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 mb-1 transition-colors"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
                 演示会话（mock）
               </button>
-              {realSessions.map(s => (
+              {filteredSessions.map(s => (
                 <div key={s.id} className="group relative">
                   <button onClick={() => { setActiveSessionId(s.id); setShowMobileMenu(false); }}
                     className="w-full text-left px-3 py-2 pr-8 rounded-md text-sm flex items-center gap-2 transition-colors hover:bg-white/5 text-muted-foreground"
@@ -1343,6 +1381,11 @@ export default function Workstation() {
                   </button>
                 </div>
               ))}
+              {sessionSearch.trim() && filteredSessions.length === 0 && (
+                <div className="px-3 py-4 text-center text-xs text-muted-foreground/60">
+                  没有找到匹配的会话
+                </div>
+              )}
               <button
                 disabled={creatingSession}
                 onClick={async () => {
