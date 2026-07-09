@@ -469,6 +469,17 @@ export default function Workstation() {
     queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(sessionId) });
   };
 
+  const regenerateSummary = async (sessionId: string, priorityMaterialIds: number[] = []) => {
+    setGenerationSessionId(sessionId);
+    try {
+      await matchMut.mutateAsync({ sessionId });
+      await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
+      invalidateAll(sessionId);
+    } finally {
+      setGenerationSessionId(current => current === sessionId ? null : current);
+    }
+  };
+
   const runTranscribe = (sessionId: string) => {
     transcribeTriggered.current = sessionId;
     transcribeMut.mutate(
@@ -478,6 +489,8 @@ export default function Workstation() {
           setUploadError(null);
           setUploadErrorSessionId(null);
           invalidateAll(sessionId);
+          // 转写完成后自动生成知识笔记
+          regenerateSummary(sessionId);
         },
         onError: () => invalidateAll(sessionId),
       }
@@ -492,17 +505,6 @@ export default function Workstation() {
       setUploadErrorSessionId(null);
     } finally {
       invalidateAll(sessionId);
-    }
-  };
-
-  const regenerateSummary = async (sessionId: string, priorityMaterialIds: number[] = []) => {
-    setGenerationSessionId(sessionId);
-    try {
-      await matchMut.mutateAsync({ sessionId });
-      await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
-      invalidateAll(sessionId);
-    } finally {
-      setGenerationSessionId(current => current === sessionId ? null : current);
     }
   };
 
