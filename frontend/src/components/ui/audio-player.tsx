@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -292,6 +292,93 @@ const AudioPlayer = ({
   const openExpanded = () => setIsExpanded(true);
   const closeExpanded = () => setIsExpanded(false);
 
+  // ── Keyboard shortcuts (normal player, only when not expanded) ──────
+  // 空格: 播放/暂停  左右: ±2s  Shift+左右: ±10s  M: 静音  Enter/A: 标记当前帧
+  const savedRateRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isExpanded) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const media = getMedia();
+      if (!media) return;
+      const dur = Number.isFinite(media.duration) ? media.duration : 0;
+
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          if (dur > 0) {
+            const t = Math.max(0, media.currentTime + (e.shiftKey ? -10 : -2));
+            if (Number.isFinite(t)) media.currentTime = t;
+          }
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          if (dur > 0) {
+            const t = Math.min(dur, media.currentTime + (e.shiftKey ? 10 : 2));
+            if (Number.isFinite(t)) media.currentTime = t;
+          }
+          break;
+        case "m":
+        case "M":
+          e.preventDefault();
+          toggleMute();
+          break;
+        case "Enter":
+        case "a":
+        case "A":
+          if (pickMode && canCapture && !batchMut.isPending) {
+            e.preventDefault();
+            addCurrentFrame();
+          }
+          break;
+      }
+    };
+
+    const handleKeyDownCapture = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && !e.shiftKey && e.repeat && savedRateRef.current === null) {
+        const media = getMedia();
+        if (media && media.playbackRate !== 2) {
+          savedRateRef.current = media.playbackRate;
+          media.playbackRate = 2;
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && savedRateRef.current !== null) {
+        const media = getMedia();
+        if (media) media.playbackRate = savedRateRef.current;
+        savedRateRef.current = null;
+      }
+    };
+
+    container.addEventListener("keydown", handleKey);
+    container.addEventListener("keydown", handleKeyDownCapture, true);
+    container.addEventListener("keyup", handleKeyUp);
+    return () => {
+      container.removeEventListener("keydown", handleKey);
+      container.removeEventListener("keydown", handleKeyDownCapture, true);
+      container.removeEventListener("keyup", handleKeyUp);
+      if (savedRateRef.current !== null) {
+        const media = getMedia();
+        if (media) media.playbackRate = savedRateRef.current;
+        savedRateRef.current = null;
+      }
+    };
+  }, [isExpanded, pickMode, canCapture, batchMut.isPending]);
+
+  // Make container focusable
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const handleMediaClick = () => {
     if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) {
       openExpanded();
@@ -309,9 +396,11 @@ const AudioPlayer = ({
   return (
     <AnimatePresence>
       <motion.div
+        ref={containerRef}
+        tabIndex={0}
         className={cn(
           "relative flex w-full flex-col overflow-hidden rounded-3xl bg-[#eaeaea] dark:bg-[#11111198] p-3 shadow-[0_0_20px_rgba(0,0,0,0.2)] backdrop-blur-sm",
-          "max-w-[624px]",
+          "max-w-[624px] outline-none focus:ring-2 focus:ring-primary/20",
           className
         )}
         initial={{ opacity: 0, y: 6 }}

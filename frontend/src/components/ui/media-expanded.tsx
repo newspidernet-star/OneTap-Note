@@ -93,6 +93,102 @@ export default function MediaExpanded({
   const isProcessing = batchMut.isPending;
   const hasDuration = duration > 0 && Number.isFinite(duration);
   const progressPercent = hasDuration ? (currentTime / duration) * 100 : 0;
+  const savedPlaybackRateRef = useRef<number | null>(null);
+
+  // ── Seek by relative seconds ────────────────────────────────────────
+  const seekBy = (delta: number) => {
+    const media = expandedMediaRef.current;
+    if (!media || !hasDuration) return;
+    const target = Math.min(duration, Math.max(0, media.currentTime + delta));
+    if (Number.isFinite(target)) media.currentTime = target;
+  };
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────
+  // 空格: 播放/暂停  左右: ±2s  Shift+左右: ±10s
+  // 长按右: 2倍速松开恢复  F: 全屏切换  M: 静音  Enter/A: 标记当前帧
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      // Don't interfere with text inputs
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const media = expandedMediaRef.current;
+      if (!media) return;
+
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          seekBy(e.shiftKey ? -10 : -2);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          seekBy(e.shiftKey ? 10 : 2);
+          break;
+        case "f":
+        case "F":
+          e.preventDefault();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else (e.currentTarget as HTMLElement)?.requestFullscreen?.();
+          break;
+        case "m":
+        case "M":
+          e.preventDefault();
+          toggleMute();
+          break;
+        case "Enter":
+        case "a":
+        case "A":
+          if (pickMode && canCapture && !isProcessing) {
+            e.preventDefault();
+            addCurrentFrame();
+          }
+          break;
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && savedPlaybackRateRef.current !== null) {
+        const media = expandedMediaRef.current;
+        if (media) media.playbackRate = savedPlaybackRateRef.current;
+        savedPlaybackRateRef.current = null;
+      }
+    };
+
+    const handleKeyDownCapture = (e: KeyboardEvent) => {
+      // Long-press ArrowRight = 2x speed (only when not Shift)
+      if (e.key === "ArrowRight" && !e.shiftKey && !e.repeat && savedPlaybackRateRef.current === null) {
+        // Only activate on hold, not quick tap — use a small delay check
+        // Actually e.repeat fires on hold; we set 2x on first repeat
+      }
+      if (e.key === "ArrowRight" && !e.shiftKey && e.repeat && savedPlaybackRateRef.current === null) {
+        const media = expandedMediaRef.current;
+        if (media && media.playbackRate !== 2) {
+          savedPlaybackRateRef.current = media.playbackRate;
+          media.playbackRate = 2;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleKeyDownCapture, true);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("keydown", handleKeyDownCapture, true);
+      window.removeEventListener("keyup", handleKeyUp);
+      // Restore playback rate if still boosted
+      if (savedPlaybackRateRef.current !== null) {
+        const media = expandedMediaRef.current;
+        if (media) media.playbackRate = savedPlaybackRateRef.current;
+        savedPlaybackRateRef.current = null;
+      }
+    };
+  }, [isOpen, pickMode, canCapture, isProcessing, hasDuration, duration]);
 
   // ── ESC / body scroll lock ──────────────────────────────────────────
   useEffect(() => {
