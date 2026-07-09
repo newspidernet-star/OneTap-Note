@@ -1,4 +1,4 @@
-import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { DynamicIsland, DynamicIslandView } from "@/components/ui/be-ui-dynamic-island";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -18,6 +18,7 @@ interface SummaryHeroCardProps {
   disabled?: boolean;
   className?: string;
   progress?: ProcessingProgress;
+  brandIcon?: string;
 }
 
 export function SummaryHeroCard({
@@ -29,6 +30,7 @@ export function SummaryHeroCard({
   disabled = false,
   className,
   progress,
+  brandIcon = "/icon-dark.png",
 }: SummaryHeroCardProps) {
   const isMobile = useIsMobile();
   const isLoading = state === "loading";
@@ -54,7 +56,7 @@ export function SummaryHeroCard({
     >
       <div className="w-full max-w-[640px] px-6 py-10 text-center sm:px-12 sm:py-12">
         <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-foreground">
-          <Sparkles className="h-5 w-5" />
+          <img src={brandIcon} alt="" className="h-9 w-9 rounded-xl object-cover shadow-sm" />
         </div>
 
         <h2 className="text-3xl font-semibold tracking-normal text-card-foreground sm:text-4xl">

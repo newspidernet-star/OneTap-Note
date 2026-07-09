@@ -991,7 +991,7 @@ export default function Workstation() {
         <main key={activeSessionId || "empty"} className="relative flex-1 flex flex-col bg-background max-md:min-h-0 max-md:flex-none">
           <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border/50">
             <div className="flex items-center gap-2.5">
-              <Sparkles className="w-5 h-5 text-primary" />
+              <img src={brandIcon} alt="" className="h-6 w-6 rounded-md object-cover shadow-sm" />
               <span className="font-semibold text-base">知识笔记</span>
             </div>
             {activeSession?.status === "done" && !isMock && (
@@ -1091,6 +1091,7 @@ export default function Workstation() {
               sessionId={activeSessionId}
               materialId={currentPreview?.id}
               progress={processingProgress}
+              brandIcon={brandIcon}
               onFrameCaptured={async (data?: any) => {
                 await refetchEvidence();
                 invalidateAll(activeSessionId);
@@ -1485,7 +1486,7 @@ export default function Workstation() {
               <div className="flex items-center justify-between border-b border-border/60 bg-foreground/[0.03] px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary">
-                    <Sparkles className="h-5 w-5" />
+                    <img src={brandIcon} alt="" className="h-7 w-7 rounded-lg object-cover shadow-sm" />
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-foreground">关闭 One Tap Note？</h3>

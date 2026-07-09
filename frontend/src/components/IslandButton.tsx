@@ -34,6 +34,7 @@ interface Props {
   materialId?: number;
   onFrameCaptured?: (data?: any) => void;
   progress?: ProcessingProgress;
+  brandIcon?: string;
 }
 
 const stageIndex: Record<string, number> = {
@@ -59,6 +60,7 @@ export default function IslandButton({
   mediaUrl, mediaType, videoRef, errorMessage,
   onPrev, onNext, hasPrev, hasNext,
   sessionId, materialId, onFrameCaptured, progress,
+  brandIcon,
 }: Props) {
   const hasMedia = !!(mediaUrl && mediaType);
   const isLarge = size === "large";
@@ -104,6 +106,7 @@ export default function IslandButton({
               onRegenerate={onRegenerate || onGenerate}
               disabled={disabled}
               progress={progress}
+              brandIcon={brandIcon}
             />
           </motion.div>
         )}

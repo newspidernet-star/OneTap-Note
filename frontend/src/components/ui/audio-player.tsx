@@ -343,7 +343,7 @@ const AudioPlayer = ({
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <motion.div className="relative h-[300px] max-md:h-[200px] w-full overflow-hidden rounded-[16px] bg-[#eaeaea] dark:bg-white/20">
+          <motion.div className="relative h-[300px] max-md:h-[200px] w-full overflow-hidden rounded-[16px] bg-[#eaeaea] dark:bg-black">
             {(onPrev || onNext) && (
               <>
                 {onPrev && (
@@ -384,7 +384,7 @@ const AudioPlayer = ({
                 onEnded={handleEnded}
                 onClick={handleMediaClick}
                 onDoubleClick={handleMediaDoubleClick}
-                className="h-full w-full border-none object-contain"
+                className="h-full w-full border-none bg-[#eaeaea] object-contain dark:bg-black"
               />
             )}
 
