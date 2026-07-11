@@ -134,6 +134,18 @@ def processing_progress(session_id: int, db: Session = Depends(get_db)):
     return get_progress(session_id)
 
 
+@router.post("/api/sessions/{session_id}/dismiss-error")
+def dismiss_session_error(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.error_message = None
+    session.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    clear_progress(session_id)
+    return {"ok": True}
+
+
 @router.post("/api/media/upload", response_model=UploadResponse)
 async def upload_file(
     session_id: int = Form(...),

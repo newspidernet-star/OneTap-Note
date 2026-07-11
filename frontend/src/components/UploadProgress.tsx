@@ -26,7 +26,7 @@ const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
 
 export default function UploadProgress({ status, errorMessage, onRetry, onDismiss, progress }: Props) {
   const info = statusMap[status];
-  const liveProgress = progress?.status === "processing" ? progress : null;
+  const liveProgress = status !== "error" && progress?.status === "processing" ? progress : null;
   const lastCompletedStage = liveProgress?.completed_stages.at(-1);
 
   return (

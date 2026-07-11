@@ -17,6 +17,7 @@ import {
   useTranscribe,
   useMatchEvidence,
   useDeleteSession,
+  useDismissSessionError,
   useRenameSession,
   useGetSettings,
   useGetEphemeral,
@@ -377,6 +378,7 @@ export default function Workstation() {
     },
   });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const dismissErrorMut = useDismissSessionError();
   const renameMut = useRenameSession();
   const { data: settingsStatus = [] } = useGetSettings({
     query: { enabled: showSettings, queryKey: getGetSettingsQueryKey() },
@@ -467,6 +469,7 @@ export default function Workstation() {
     queryClient2.invalidateQueries({ queryKey: getGetEvidenceBlocksQueryKey(sessionId) });
     queryClient2.invalidateQueries({ queryKey: getGetMaterialsQueryKey(sessionId) });
     queryClient2.invalidateQueries({ queryKey: getGetSummaryResultQueryKey(sessionId) });
+    queryClient2.invalidateQueries({ queryKey: getProcessingProgressQueryKey(sessionId) });
   };
 
   const regenerateSummary = async (sessionId: string, priorityMaterialIds: number[] = []) => {
@@ -474,8 +477,8 @@ export default function Workstation() {
     try {
       await matchMut.mutateAsync({ sessionId });
       await generateMutation.mutateAsync({ sessionId, priorityMaterialIds });
-      invalidateAll(sessionId);
     } finally {
+      invalidateAll(sessionId);
       setGenerationSessionId(current => current === sessionId ? null : current);
     }
   };
@@ -490,7 +493,7 @@ export default function Workstation() {
           setUploadErrorSessionId(null);
           invalidateAll(sessionId);
           // 转写完成后自动生成知识笔记
-          regenerateSummary(sessionId);
+          regenerateSummary(sessionId).catch(() => invalidateAll(sessionId));
         },
         onError: () => invalidateAll(sessionId),
       }
@@ -597,6 +600,7 @@ export default function Workstation() {
     setGenerateError(null);
     try {
       await regenerateSummary(activeSessionId);
+      invalidateAll(activeSessionId);
     } catch (error: any) {
       setGenerateError(error?.message?.includes("语音转写")
         ? "语音转写还没有完成，请稍后再生成知识笔记"
@@ -657,19 +661,30 @@ export default function Workstation() {
   };
 
   const statusText = (s: string) => s === 'done' ? '已完成' : s === 'processing' ? '处理中' : s === 'failed' ? '失败' : (s || '就绪');
-  const isProcessing = uploadRunning || uploadMut.isPending || downloadLinkMut.isPending || processMut.isPending || transcribeMut.isPending;
   const pipelineError = uploadError || activeSession?.error_message || generateError || undefined;
+  const progressIsProcessing = !pipelineError && processingProgress?.status === "processing";
+  const isActiveSessionGenerating = generationSessionId === activeSessionId;
+  const isProcessing =
+    uploadRunning ||
+    uploadMut.isPending ||
+    downloadLinkMut.isPending ||
+    processMut.isPending ||
+    transcribeMut.isPending ||
+    matchMut.isPending ||
+    generateMutation.isPending ||
+    isActiveSessionGenerating ||
+    activeSession?.status === "processing" ||
+    progressIsProcessing;
 
   const uploadStatus: UploadStatus = pipelineError && !matchMut.isPending && !generateMutation.isPending
     ? "error"
-    : uploadRunning || uploadMut.isPending || processMut.isPending || transcribeMut.isPending || activeSession?.status === 'processing'
+    : isProcessing
       ? "uploading"
       : activeSession?.status === 'done'
         ? "done"
         : "idle";
 
-  const isActiveSessionGenerating = generationSessionId === activeSessionId;
-  const progressButtonStatus: ButtonStatus | null = processingProgress?.status === "processing"
+  const progressButtonStatus: ButtonStatus | null = progressIsProcessing
     ? processingProgress.stage === "transcribe"
       ? "transcribing"
       : processingProgress.stage === "match"
@@ -692,7 +707,29 @@ export default function Workstation() {
               ? "done"
               : "idle";
 
-  const canGenerate = !isMock && !generationSessionId && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const canGenerate = !isMock && !isProcessing && !generationSessionId && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const dismissCurrentError = async () => {
+    const sessionId = activeSessionId;
+    setUploadError(null);
+    setGenerateError(null);
+    setUploadErrorSessionId(null);
+    setProcessingSessionId(null);
+    setGenerationSessionId(current => current === sessionId ? null : current);
+    uploadMut.reset();
+    downloadLinkMut.reset();
+    processMut.reset();
+    transcribeMut.reset();
+    matchMut.reset();
+    generateMutation.reset();
+    if (!sessionId || isMock) return;
+    try {
+      await dismissErrorMut.mutateAsync({ sessionId });
+    } catch {
+      // 本地状态已经清掉；后端清理失败时下一轮刷新仍会展示真实状态。
+    } finally {
+      invalidateAll(sessionId);
+    }
+  };
   const settingsByKey = useMemo(
     () => new Map((settingsStatus as any[]).map(item => [item.key, item])),
     [settingsStatus]
@@ -818,11 +855,12 @@ export default function Workstation() {
                     status={uploadStatus}
                     progress={processingProgress}
                     errorMessage={pipelineError}
-                    onDismiss={() => setUploadError(null)}
+                    onDismiss={dismissCurrentError}
                     onRetry={async () => {
                       if (!activeSessionId) return;
                       transcribeTriggered.current = "";
                       setUploadError(null);
+                      setGenerateError(null);
                       setUploadErrorSessionId(activeSessionId);
                       setProcessingSessionId(activeSessionId);
                       try {

@@ -278,6 +278,18 @@ export const useDeleteSession = <TError = unknown, TContext = unknown>(
   });
 };
 
+export const useDismissSessionError = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string }, TContext>({
+    mutationFn: ({ sessionId }) =>
+      safeFetch<any>(`/api/sessions/${toIntId(sessionId)}/dismiss-error`, { method: "POST" }),
+    ...options?.mutation,
+  });
+};
+
 export const useRenameSession = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<any, TError, { sessionId: string; title: string }, TContext>;
