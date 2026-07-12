@@ -173,6 +173,8 @@ def build_prompt(blocks: list[EvidenceBlock], matches: list[Match], priority_mat
     lines.append("- 保持清单原始顺序。不要自行生成行动优先级，也不要把编号机械分成“立即、短期、长期”；原文明确排序或用户要求时除外。")
     lines.append("- 用户重点追加素材必须进入正文或内部校验要点，除非为空或噪声。")
     lines.append("- 如果 OCR/ASR 中出现 URL、GitHub 或项目链接，在正文末尾保留简短的“## 来源链接”章节。")
+    lines.append("- 长视频、访谈、讲座或评论类内容不能压缩成短摘要；必须保留完整论证链、关键例子、人物/公司/国家对比、预测与分歧。")
+    lines.append("- 对 30 分钟以上或证据块很多的内容，summary 应是一篇可独立阅读的长笔记，而不是目录式概括。")
     lines.append("\n请输出 JSON (不再额外解释):")
     return "\n".join(lines)
 
@@ -310,8 +312,16 @@ def generate_summary(session_id: int, db: Session, priority_material_ids: list[i
             "",
             "## Long content mode",
             "This session has many transcript blocks. To avoid truncated JSON, set corrected_text to an empty string.",
-            "Generate the knowledge note in summary and the internal citations in key_points only.",
+            "Generate a detailed long-form knowledge note in summary and the internal citations in key_points only.",
             "Do not paste the full transcript into corrected_text.",
+            "Do not over-compress a long video into a short abstract. The reader should understand the speaker's complete argument without opening the original video.",
+            "For long interviews, lectures, talks, debates, or commentary videos, write 8-14 substantial sections when the source supports it.",
+            "Each important section should include concrete claims, reasoning, examples, named people or companies, comparisons, predictions, and caveats from the source.",
+            "Preserve the argument chain: why the speaker believes this, what historical analogy is used, what evidence or example supports it, and what conclusion follows.",
+            "When the topic includes multiple positions or countries, keep each side's logic separate instead of merging it into one vague bullet.",
+            "Target about 2500-5000 Chinese characters for a 30+ minute source, unless the source itself is repetitive or thin.",
+            "Good section patterns for long viewpoint content: core thesis, historical analogy, technology path, China/US comparison, platform power structure, future forecast, actionable takeaways, memorable expressions, unresolved questions.",
+            "It is acceptable for key_points to stay short. The summary must be rich.",
         ])
         result = _call_deepseek_with_system(prompt, db, SYSTEM_PROMPT)
     else:
