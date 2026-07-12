@@ -19,6 +19,7 @@ import {
   useDeleteSession,
   useDismissSessionError,
   useRenameSession,
+  useUpdateSessionNote,
   useGetSettings,
   useGetEphemeral,
   useExportObsidianMd,
@@ -129,6 +130,7 @@ export default function Workstation() {
   const [mediaIndex, setMediaIndex] = useState(0);
   const [linkInput, setLinkInput] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
+  const [userNoteDraft, setUserNoteDraft] = useState("");
   const [uploadRunning, setUploadRunning] = useState(false);
   const [processingSessionId, setProcessingSessionId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -416,6 +418,13 @@ export default function Workstation() {
     },
   });
   const exportMdMut = useExportObsidianMd();
+  const updateSessionNoteMut = useUpdateSessionNote({
+    mutation: {
+      onSuccess: () => {
+        queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
+      },
+    },
+  });
 
   const copyExport = async (view: "note" | "transcript" | "evidence", label: string) => {
     try {
@@ -428,6 +437,18 @@ export default function Workstation() {
   };
 
   const activeSession = realSessions.find(s => s.id === activeSessionId);
+  useEffect(() => {
+    setUserNoteDraft(activeSession?.user_note || "");
+  }, [activeSessionId, activeSession?.user_note]);
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const saved = activeSession?.user_note || "";
+    if (userNoteDraft === saved) return;
+    const timer = window.setTimeout(() => {
+      updateSessionNoteMut.mutate({ sessionId: activeSessionId, userNote: userNoteDraft });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [activeSessionId, userNoteDraft, activeSession?.user_note]);
   const displaySummary = summary ?? (isMock ? MOCK_SUMMARY : null);
   const displayEvidence = isMock ? MOCK_EVIDENCE : (evidence as any[]);
 
@@ -1270,6 +1291,22 @@ export default function Workstation() {
                     </div>
                   </CollapsibleCard>
                 </motion.div>
+
+                <CollapsibleCard icon={Pencil} title="我的随手记" defaultOpen={Boolean(userNoteDraft.trim())}>
+                  <div className="space-y-2 px-4 py-3">
+                    <textarea
+                      value={userNoteDraft}
+                      onChange={(event) => setUserNoteDraft(event.target.value)}
+                      maxLength={10000}
+                      placeholder="这里写你自己的判断、用途、灵感或想留下的话。比如：这条可以放到项目复盘里；这句话适合写进 README。"
+                      className="min-h-[112px] w-full resize-y rounded-lg border border-border/70 bg-background/80 px-3 py-2 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-primary/35 focus:ring-2 focus:ring-primary/10"
+                    />
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span>会自动保存，并在复制笔记时合并到 Markdown。</span>
+                      <span>{updateSessionNoteMut.isPending ? "保存中..." : `${userNoteDraft.length}/10000`}</span>
+                    </div>
+                  </div>
+                </CollapsibleCard>
               </motion.div>
             )}
             {displayEvidence.length > 0 && (

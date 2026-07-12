@@ -306,6 +306,22 @@ export const useRenameSession = <TError = unknown, TContext = unknown>(
   });
 };
 
+export const useUpdateSessionNote = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { sessionId: string; userNote: string }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { sessionId: string; userNote: string }, TContext>({
+    mutationFn: ({ sessionId, userNote }) =>
+      safeFetch<any>(`/api/sessions/${toIntId(sessionId)}/note`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_note: userNote }),
+      }),
+    ...options?.mutation,
+  });
+};
+
 export const useTranscribe = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;

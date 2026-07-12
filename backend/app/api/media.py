@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Material, Match, Summary, Session as SessionModel, Transcript, TranscriptSegment
-from app.schemas.media import MaterialOut, SessionCreate, SessionOut, UploadResponse
+from app.schemas.media import MaterialOut, SessionCreate, SessionNoteUpdate, SessionOut, UploadResponse
 from app.services.crypto import get_secret
 from app.services.frame_extractor import extract_frame_at
 from app.services.ocr import ocr_batch, ocr_image
@@ -292,6 +292,18 @@ def update_session(session_id: int, body: SessionCreate, db: Session = Depends(g
     session.updated_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     return {"id": session.id, "title": session.title, "status": session.status, "created_at": session.created_at, "updated_at": session.updated_at, "error_message": session.error_message}
+
+
+@router.patch("/api/sessions/{session_id}/note", response_model=SessionOut)
+def update_session_note(session_id: int, body: SessionNoteUpdate, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.user_note = (body.user_note or "")[:10000]
+    session.updated_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    db.refresh(session)
+    return session
 
 
 @router.get("/api/media/evidence/{session_id}")

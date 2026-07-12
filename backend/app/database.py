@@ -45,6 +45,8 @@ def _auto_migrate() -> None:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN client_id VARCHAR(64)"))
             if "last_seen_at" not in cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN last_seen_at VARCHAR(50)"))
+            if "user_note" not in cols:
+                conn.execute(text("ALTER TABLE sessions ADD COLUMN user_note TEXT DEFAULT '' NOT NULL"))
 
     if "evidence_blocks" in insp.get_table_names():
         cols = {c["name"] for c in insp.get_columns("evidence_blocks")}

@@ -260,7 +260,13 @@ def _source_link_lines(materials: list[Material]) -> list[str]:
     return ["## 原始来源", "", *links, ""]
 
 
-def _export_note(title: str, created: str, summary: Summary, materials: list[Material] | None = None) -> str:
+def _export_note(
+    title: str,
+    created: str,
+    summary: Summary,
+    materials: list[Material] | None = None,
+    user_note: str = "",
+) -> str:
     lines = _frontmatter(title, created, "knowledge-note")
     lines.extend([f"# {title}", ""])
     body = (summary.summary_markdown or "").strip()
@@ -273,6 +279,9 @@ def _export_note(title: str, created: str, summary: Summary, materials: list[Mat
             if point:
                 lines.append(f"- {point}")
         lines.append("")
+    note = (user_note or "").strip()
+    if note:
+        lines.extend(["## 我的随手记", "", note, ""])
     if materials:
         lines.extend(_source_link_lines(materials))
     return "\n".join(lines)
@@ -345,4 +354,7 @@ def export_obsidian_md(
             "markdown": _export_evidence(title, created, summary, blocks),
             "filename": f"{title}-证据记录.md",
         }
-    return {"markdown": _export_note(title, created, summary, materials), "filename": f"{title}.md"}
+    return {
+        "markdown": _export_note(title, created, summary, materials, session.user_note or ""),
+        "filename": f"{title}.md",
+    }
