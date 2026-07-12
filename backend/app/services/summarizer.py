@@ -11,6 +11,10 @@ from app.services.crypto import get_secret
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 MAX_RETRIES = 5
+LONG_NOTE_BLOCK_LIMIT = 240
+LONG_NOTE_TEXT_LIMIT = 24000
+REVIEW_BLOCK_LIMIT = 220
+REVIEW_TEXT_LIMIT = 28000
 
 logger = logging.getLogger("smart_scribe")
 
@@ -234,8 +238,29 @@ def call_deepseek(prompt: str, db: Session) -> dict:
     return _call_deepseek_with_system(prompt, db, SYSTEM_PROMPT)
 
 
+def _blocks_text_length(blocks: list[EvidenceBlock]) -> int:
+    return sum(len(block.text or "") for block in blocks)
+
+
+def _is_long_note(blocks: list[EvidenceBlock]) -> bool:
+    return len(blocks) > LONG_NOTE_BLOCK_LIMIT or _blocks_text_length(blocks) > LONG_NOTE_TEXT_LIMIT
+
+
 def review_summary_completeness(result: dict, session_id: int, db: Session) -> dict:
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
+    text_len = _blocks_text_length(blocks)
+    if len(blocks) > REVIEW_BLOCK_LIMIT or text_len > REVIEW_TEXT_LIMIT:
+        logger.info(
+            "[AI-REVIEW] session %s: skipped for large evidence set, blocks=%s text_len=%s",
+            session_id,
+            len(blocks),
+            text_len,
+        )
+        result = dict(result)
+        result["_review_skipped"] = True
+        result["_review_revised"] = False
+        result["_review_issues"] = ["skipped-large-evidence-set"]
+        return result
     evidence_lines = [
         f"[{block.block_id}] [{block.type} {_fmt_review_ts(block.timestamp)}] {block.text}"
         for block in blocks
@@ -279,12 +304,27 @@ def generate_summary(session_id: int, db: Session, priority_material_ids: list[i
         Match.speech_block_id.in_([b.id for b in blocks if b.type == "speech"])
     ).all()
     prompt = build_prompt(blocks, matches, set(priority_material_ids or []))
-    result = call_deepseek(prompt, db)
+    if _is_long_note(blocks):
+        prompt = "\n".join([
+            prompt,
+            "",
+            "## Long content mode",
+            "This session has many transcript blocks. To avoid truncated JSON, set corrected_text to an empty string.",
+            "Generate the knowledge note in summary and the internal citations in key_points only.",
+            "Do not paste the full transcript into corrected_text.",
+        ])
+        result = _call_deepseek_with_system(prompt, db, SYSTEM_PROMPT)
+    else:
+        result = call_deepseek(prompt, db)
     _append_extracted_links(result, blocks)
     # 如果 DeepSeek 返回空纠错文本（纯图片会话无语音可纠），用 OCR 原文兜底
     if not result.get("corrected_text", "").strip():
-        ocr_parts = [f"[{b.block_id}] {b.text}" for b in blocks if b.type in _MATERIAL_TYPES]
-        result["corrected_text"] = "\n".join(ocr_parts)
+        original_parts = [
+            f"[{b.block_id}] {b.text}"
+            for b in blocks
+            if b.type == "speech" or b.type in _MATERIAL_TYPES
+        ]
+        result["corrected_text"] = "\n".join(original_parts)
     return result
 
 

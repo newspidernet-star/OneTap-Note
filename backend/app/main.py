@@ -69,12 +69,18 @@ def create_app() -> FastAPI:
     # 开发模式仍用 npm run dev（:5173 代理到 :8000）。
     frontend_dist = Path(settings.frontend_dist_dir) if settings.frontend_dist_dir else (Path(__file__).resolve().parents[2] / "frontend" / "dist")
     if frontend_dist.exists():
+        def _frontend_file(path: Path, no_store: bool = False) -> FileResponse:
+            response = FileResponse(path)
+            if no_store:
+                response.headers["Cache-Control"] = "no-store, max-age=0"
+            return response
+
         @app.get("/{full_path:path}")
         async def _spa(full_path: str):
             candidate = frontend_dist / full_path
             if full_path and candidate.is_file():
-                return FileResponse(candidate)
-            return FileResponse(frontend_dist / "index.html")
+                return _frontend_file(candidate)
+            return _frontend_file(frontend_dist / "index.html", no_store=True)
 
     return app
 
