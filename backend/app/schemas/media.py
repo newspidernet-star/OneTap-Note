@@ -26,6 +26,7 @@ class MaterialOut(BaseModel):
     sort_order: int
     status: str
     url: str | None = None
+    original_url: str | None = None
 
     class Config:
         from_attributes = True

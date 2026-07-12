@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Sparkles, Mic2, ImageIcon, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, FileText, ArrowUp, Search } from "lucide-react";
+import { Sparkles, Mic2, ImageIcon, Film, ScanLine, Link2, Settings, CheckCircle2, Loader2, XCircle, KeyRound, CheckCircle, Sun, Moon, CloudUpload, LinkIcon, ChevronDown, Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, AlertCircle, Trash2, PanelRightClose, PanelRightOpen, Menu, X, Pencil, Plus, Copy, FileText, ArrowUp, Search, ExternalLink, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import {
@@ -467,6 +467,27 @@ export default function Workstation() {
   const hasNextMaterial = mediaIndex < previewMaterials.length - 1;
   const goToPrevMaterial = () => setMediaIndex(i => Math.max(0, i - 1));
   const goToNextMaterial = () => setMediaIndex(i => Math.min(previewMaterials.length - 1, i + 1));
+  const currentOriginalUrl = (currentPreview?.original_url || "").trim();
+  const canDownloadCurrentVideo = currentPreview?.url && currentPreview?.type === "video";
+  const copyOriginalUrl = async () => {
+    if (!currentOriginalUrl) return;
+    await navigator.clipboard.writeText(currentOriginalUrl);
+    sonnerToast.success("原链接已复制", { description: "可以回到原视频或评论区继续查看" });
+  };
+  const openOriginalUrl = () => {
+    if (!currentOriginalUrl) return;
+    window.open(currentOriginalUrl, "_blank", "noopener,noreferrer");
+  };
+  const downloadCurrentVideo = () => {
+    if (!currentPreview?.url) return;
+    const link = document.createElement("a");
+    link.href = currentPreview.url;
+    link.download = decodeURIComponent(currentPreview.url.split("/").pop() || "video.mp4");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    sonnerToast.success("开始下载视频");
+  };
 
   const invalidateAll = (sessionId = activeSessionId) => {
     queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
@@ -1174,6 +1195,38 @@ export default function Workstation() {
               }}
             />
             </div>
+
+            {(currentOriginalUrl || canDownloadCurrentVideo) && (
+              <div className="flex w-full max-w-[624px] flex-wrap items-center justify-center gap-2">
+                {currentOriginalUrl && (
+                  <>
+                    <button
+                      onClick={copyOriginalUrl}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/75 px-3 py-1.5 text-xs font-medium text-foreground/75 shadow-sm transition-colors hover:bg-muted"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      复制原链接
+                    </button>
+                    <button
+                      onClick={openOriginalUrl}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/75 px-3 py-1.5 text-xs font-medium text-foreground/75 shadow-sm transition-colors hover:bg-muted"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      打开原视频
+                    </button>
+                  </>
+                )}
+                {canDownloadCurrentVideo && (
+                  <button
+                    onClick={downloadCurrentVideo}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/75 px-3 py-1.5 text-xs font-medium text-foreground/75 shadow-sm transition-colors hover:bg-muted"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    下载视频
+                  </button>
+                )}
+              </div>
+            )}
 
             {displaySummary && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[640px] space-y-3">

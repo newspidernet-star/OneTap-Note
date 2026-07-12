@@ -246,7 +246,21 @@ def _frontmatter(title: str, created: str, kind: str) -> list[str]:
     return lines
 
 
-def _export_note(title: str, created: str, summary: Summary) -> str:
+def _source_link_lines(materials: list[Material]) -> list[str]:
+    links: list[str] = []
+    seen: set[str] = set()
+    for material in materials:
+        url = (material.original_url or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append(f"- [原视频 / 原始链接]({url})")
+    if not links:
+        return []
+    return ["## 原始来源", "", *links, ""]
+
+
+def _export_note(title: str, created: str, summary: Summary, materials: list[Material] | None = None) -> str:
     lines = _frontmatter(title, created, "knowledge-note")
     lines.extend([f"# {title}", ""])
     body = (summary.summary_markdown or "").strip()
@@ -259,6 +273,8 @@ def _export_note(title: str, created: str, summary: Summary) -> str:
             if point:
                 lines.append(f"- {point}")
         lines.append("")
+    if materials:
+        lines.extend(_source_link_lines(materials))
     return "\n".join(lines)
 
 
@@ -316,6 +332,7 @@ def export_obsidian_md(
         raise HTTPException(status_code=404, detail="总结结果不存在")
 
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
+    materials = db.query(Material).filter_by(session_id=session_id).order_by(Material.sort_order).all()
     title = session.title or "Untitled"
     created = session.created_at[:10] if session.created_at else ""
     if view == "transcript":
@@ -328,4 +345,4 @@ def export_obsidian_md(
             "markdown": _export_evidence(title, created, summary, blocks),
             "filename": f"{title}-证据记录.md",
         }
-    return {"markdown": _export_note(title, created, summary), "filename": f"{title}.md"}
+    return {"markdown": _export_note(title, created, summary, materials), "filename": f"{title}.md"}

@@ -184,6 +184,7 @@ async def list_materials(session_id: int, db: Session = Depends(get_db)):
             sort_order=m.sort_order,
             status=m.status,
             url=_storage_url(m.file_path),
+            original_url=m.original_url,
         )
         for m in materials
     ]
@@ -450,6 +451,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
             id=existing.id, type=existing.type, source=existing.source,
             status=existing.status, sort_order=existing.sort_order,
             url=_storage_url(existing.file_path),
+            original_url=existing.original_url,
         )]}
 
     cookie_path = get_secret(db, "ytdlp_cookie_path")
@@ -482,6 +484,7 @@ def download_link(session_id: int, body: dict, db: Session = Depends(get_db)):
             id=mat.id, type=mat.type, source=mat.source,
             status=mat.status, sort_order=mat.sort_order,
             url=_storage_url(mat.file_path),
+            original_url=mat.original_url,
         ))
     session.status = "processing"
     session.error_message = None
