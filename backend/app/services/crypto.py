@@ -35,16 +35,19 @@ def decrypt(ciphertext: str) -> str:
 
 
 def get_secret(db, key: str) -> str | None:
-    """读取一个 API key/凭证：环境变量 SMART_SCRIBE_<KEY_UPPER> 优先，其次 AES 加密的 DB 行。
+    """Read an API credential.
 
-    这样 Fly 等平台可用 secrets 注入 key（不落库、不入设置页）；本地仍可用设置页。
+    Desktop settings take priority over environment variables so users can
+    replace a stale packaged or shell credential from the settings page.
     """
+    from app.models import ApiSettings  # Delay import to avoid circular imports.
+
+    record = db.query(ApiSettings).filter_by(key=key).first()
+    if record and record.encrypted_value:
+        return decrypt(record.encrypted_value)
+
     env_name = f"SMART_SCRIBE_{key.upper()}"
     val = os.environ.get(env_name)
     if val:
         return val
-    from app.models import ApiSettings  # 延迟导入避免循环
-    record = db.query(ApiSettings).filter_by(key=key).first()
-    if record and record.encrypted_value:
-        return decrypt(record.encrypted_value)
     return None

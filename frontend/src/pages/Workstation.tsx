@@ -23,6 +23,7 @@ import {
   useGetEphemeral,
   useExportObsidianMd,
   useUpdateSettings,
+  useTestSettingLive,
   getGetEvidenceBlocksQueryKey,
   getGetSummaryResultQueryKey,
   getGetMaterialsQueryKey,
@@ -146,6 +147,7 @@ export default function Workstation() {
   const [renameDraft, setRenameDraft] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
+  const [settingsTestResults, setSettingsTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [creatingSession, setCreatingSession] = useState(false);
   const [appendPanelOpen, setAppendPanelOpen] = useState(false);
   const [showDesktopClosePrompt, setShowDesktopClosePrompt] = useState(false);
@@ -388,10 +390,13 @@ export default function Workstation() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
         setSettingsDraft({});
+        setSettingsTestResults({});
         setShowSettings(false);
       },
     },
   });
+  const testSaveSettingsMut = useUpdateSettings();
+  const testSettingLiveMut = useTestSettingLive();
   const generateMutation = useGenerateSummary({
     mutation: {
       onSuccess: (_data, variables) => {
@@ -736,7 +741,6 @@ export default function Workstation() {
   );
   const handleSaveSettings = async () => {
     const changed = SETTINGS_FIELDS
-      .filter(field => !settingsByKey.get(field.key)?.from_env)
       .map(field => ({
         key: field.key,
         value: (settingsDraft[field.key] || "").trim(),
@@ -749,6 +753,28 @@ export default function Workstation() {
       return;
     }
     await updateSettingsMut.mutateAsync({ settings: changed });
+  };
+
+  const handleTestSetting = async (key: string, isRequired: boolean) => {
+    setSettingsTestResults(prev => ({ ...prev, [key]: { ok: false, message: "测试中..." } }));
+    try {
+      const draftValue = (settingsDraft[key] || "").trim();
+      if (draftValue) {
+        await testSaveSettingsMut.mutateAsync({ settings: [{ key, value: draftValue, is_required: isRequired }] });
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        setSettingsDraft(prev => ({ ...prev, [key]: "" }));
+      }
+      const result = await testSettingLiveMut.mutateAsync({ key });
+      setSettingsTestResults(prev => ({
+        ...prev,
+        [key]: { ok: Boolean(result?.ok), message: result?.message || (result?.ok ? "连接正常" : "连接失败") },
+      }));
+    } catch (error: any) {
+      setSettingsTestResults(prev => ({
+        ...prev,
+        [key]: { ok: false, message: error?.message || "连接失败" },
+      }));
+    }
   };
 
   const handleDesktopCloseAction = async (action: "tray" | "quit" | "cancel") => {
@@ -1616,6 +1642,7 @@ export default function Workstation() {
                   const status = settingsByKey.get(field.key);
                   const isSet = Boolean(status?.is_set);
                   const fromEnv = Boolean(status?.from_env);
+                  const testResult = settingsTestResults[field.key];
                   return (
                     <div key={field.key} className="space-y-1.5">
                       <label className="text-xs font-mono text-muted-foreground">
@@ -1623,17 +1650,33 @@ export default function Workstation() {
                         <span className={`ml-2 text-[10px] font-sans ${field.required ? "text-red-400" : "text-muted-foreground"}`}>
                           {field.required ? "必填" : "可选"}
                         </span>
-                        {fromEnv && <span className="ml-2 text-[10px] text-emerald-400 font-sans">✓ 由部署者配置</span>}
+                        {fromEnv && <span className="ml-2 text-[10px] text-emerald-400 font-sans">✓ 环境变量兜底，可本地覆盖</span>}
                         {!fromEnv && isSet && <span className="ml-2 text-[10px] text-emerald-400 font-sans">已保存</span>}
                       </label>
-                      <input
-                        type="password"
-                        value={fromEnv ? "" : (settingsDraft[field.key] || "")}
-                        onChange={e => setSettingsDraft(d => ({ ...d, [field.key]: e.target.value }))}
-                        disabled={fromEnv}
-                        placeholder={fromEnv ? "已由部署者通过环境变量配置，无需填写" : (isSet ? "已保存，留空保持不变" : field.placeholder)}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:border-primary outline-none font-mono disabled:opacity-60 disabled:cursor-not-allowed"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={settingsDraft[field.key] || ""}
+                          onChange={e => setSettingsDraft(d => ({ ...d, [field.key]: e.target.value }))}
+                          placeholder={fromEnv ? "当前有环境变量兜底；填入新值后会优先使用本地设置" : (isSet ? "已保存，留空保持不变" : field.placeholder)}
+                          className="min-w-0 flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:border-primary outline-none font-mono"
+                        />
+                        {field.key === "deepseek_api_key" && (
+                          <button
+                            type="button"
+                            onClick={() => handleTestSetting(field.key, field.required)}
+                            disabled={testSettingLiveMut.isPending || testSaveSettingsMut.isPending}
+                            className="shrink-0 px-3 py-2 rounded-lg border border-border text-xs font-medium hover:bg-white/5 transition-colors disabled:opacity-60"
+                          >
+                            {testSettingLiveMut.isPending || testSaveSettingsMut.isPending ? "测试中" : "测试连接"}
+                          </button>
+                        )}
+                      </div>
+                      {testResult && (
+                        <p className={`text-xs ${testResult.ok ? "text-emerald-400" : "text-red-400"}`}>
+                          {testResult.message}
+                        </p>
+                      )}
                     </div>
                   );
                 })}

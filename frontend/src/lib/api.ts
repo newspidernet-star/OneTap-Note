@@ -376,6 +376,20 @@ export const useUpdateSettings = <TError = unknown, TContext = unknown>(
   });
 };
 
+export const useTestSettingLive = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<any, TError, { key: string }, TContext>;
+  }
+) => {
+  return useMutation<any, TError, { key: string }, TContext>({
+    mutationFn: ({ key }) =>
+      safeFetch<any>(`/api/settings/${encodeURIComponent(key)}/test-live`, {
+        method: "POST",
+      }),
+    ...options?.mutation,
+  });
+};
+
 export const getEphemeralQueryKey = () => ["/api/settings/ephemeral"] as const;
 
 export function useGetEphemeral<TData = any, TError = unknown>(

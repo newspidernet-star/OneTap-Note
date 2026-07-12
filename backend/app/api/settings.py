@@ -1,12 +1,14 @@
 import os
 
+import httpx
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.models import ApiSettings
 from app.schemas.settings import SettingsUpdate, TestResult
-from app.services.crypto import decrypt, encrypt, get_secret
+from app.services.crypto import encrypt, get_secret
+from app.services.summarizer import DEEPSEEK_MODEL, DEEPSEEK_URL
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -56,16 +58,46 @@ async def update_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
 
 @router.post("/{key}/test")
 async def test_setting(key: str, db: Session = Depends(get_db)):
-    existing = db.query(ApiSettings).filter_by(key=key).first()
-    if not existing or not existing.encrypted_value:
-        return TestResult(key=key, ok=False, message="未配置")
-    try:
-        plaintext = decrypt(existing.encrypted_value)
-    except Exception:
-        return TestResult(key=key, ok=False, message="解密失败")
+    plaintext = get_secret(db, key)
     if not plaintext:
-        return TestResult(key=key, ok=False, message="值为空")
+        return TestResult(key=key, ok=False, message="未配置")
     return TestResult(key=key, ok=True, message="格式有效")
+
+
+@router.post("/{key}/test-live")
+async def test_setting_live(key: str, db: Session = Depends(get_db)):
+    plaintext = get_secret(db, key)
+    if not plaintext:
+        return TestResult(key=key, ok=False, message="未配置")
+    if key != "deepseek_api_key":
+        return TestResult(key=key, ok=True, message="已保存")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                DEEPSEEK_URL,
+                headers={"Authorization": f"Bearer {plaintext}", "Content-Type": "application/json"},
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 8,
+                    "temperature": 0.1,
+                },
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        body = e.response.text[:300]
+        if e.response.status_code == 401:
+            message = "DeepSeek API Key 无效或已删除，请重新保存新的 Key"
+        elif e.response.status_code in {402, 429}:
+            message = "DeepSeek 额度不足或请求受限，请检查账户余额与限额"
+        else:
+            message = f"DeepSeek 返回 {e.response.status_code}: {body}"
+        return TestResult(key=key, ok=False, message=message)
+    except httpx.RequestError as e:
+        return TestResult(key=key, ok=False, message=f"DeepSeek 请求失败: {e}")
+
+    return TestResult(key=key, ok=True, message="DeepSeek 连接正常")
 
 
 from app.config import get_settings
