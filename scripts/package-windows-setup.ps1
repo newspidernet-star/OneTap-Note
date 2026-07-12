@@ -26,6 +26,7 @@ $required = @(
     "desktop\main.cjs",
     "desktop\preload.cjs",
     "desktop\loading.html",
+    "desktop\assets\icon.ico",
     "desktop\assets\icon.png"
 )
 
