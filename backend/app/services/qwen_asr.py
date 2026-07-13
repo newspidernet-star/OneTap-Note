@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Transcript, TranscriptSegment
 from app.services.crypto import get_secret
-from app.services.tunnel import reset_tunnel, resolve_public_base_url
+from app.services.tunnel import ensure_public_base_url, reset_tunnel
 
 FUNASR_MODEL = "fun-asr"
 logger = logging.getLogger("smart_scribe")
@@ -166,7 +166,7 @@ def _parse_filetrans_response(result: dict) -> list[dict]:
 
 
 def _public_url_for_local_file(audio_path: str) -> str | None:
-    public_base = resolve_public_base_url()
+    public_base = ensure_public_base_url()
     if not public_base:
         return None
     sdir = get_settings().storage_dir.resolve()
