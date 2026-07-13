@@ -15,6 +15,8 @@ interface Props {
   onRetry?: () => void;
   onDismiss?: () => void;
   progress?: ProcessingProgress;
+  doneLabel?: string;
+  doneHint?: string;
 }
 
 const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
@@ -24,8 +26,10 @@ const statusMap: Record<UploadStatus, { label: string; accent: string }> = {
   error: { label: "处理失败", accent: "text-red-400" },
 };
 
-export default function UploadProgress({ status, errorMessage, onRetry, onDismiss, progress }: Props) {
-  const info = statusMap[status];
+export default function UploadProgress({ status, errorMessage, onRetry, onDismiss, progress, doneLabel, doneHint }: Props) {
+  const info = status === "done" && doneLabel
+    ? { ...statusMap.done, label: doneLabel }
+    : statusMap[status];
   const liveProgress = status !== "error" && progress?.status === "processing" ? progress : null;
   const lastCompletedStage = liveProgress?.completed_stages.at(-1);
 
@@ -55,7 +59,7 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
               </>
             )}
             {status === "done" && (
-              <p className="text-[11px] text-muted-foreground/70 mt-0.5">点击右侧「生成知识笔记」</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">{doneHint || "点击右侧「生成知识笔记」"}</p>
             )}
           </div>
 

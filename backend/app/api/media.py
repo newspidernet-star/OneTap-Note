@@ -4,6 +4,7 @@ import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.config import get_settings
 from app.models import ApiSettings, EvidenceBlock, Material, Match, Summary, Session as SessionModel, Transcript, TranscriptSegment
-from app.schemas.media import MaterialOut, SessionCreate, SessionNoteUpdate, SessionOut, UploadResponse
+from app.schemas.media import MaterialOut, QuickCaptureCreate, SessionCreate, SessionNoteUpdate, SessionOut, UploadResponse
 from app.services.crypto import get_secret
 from app.services.frame_extractor import extract_frame_at
 from app.services.ocr import ocr_batch, ocr_image
@@ -111,6 +112,66 @@ async def create_session(body: SessionCreate, db: Session = Depends(get_db)):
     db.refresh(s)
     clear_progress(s.id)
     return s
+
+
+@router.post("/api/sessions/quick-capture")
+def create_quick_capture(body: QuickCaptureCreate, db: Session = Depends(get_db)):
+    """Save a source and optional thought without downloading or running AI."""
+    from app.services.downloader import _extract_url
+
+    clean_url = _extract_url((body.url or "").strip())
+    parsed = urlparse(clean_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="请输入有效的 http/https 链接")
+    if len(clean_url) > 500:
+        raise HTTPException(status_code=400, detail="链接过长，请使用原始页面链接")
+
+    note = (body.note or "").strip()[:10000]
+    requested_title = (body.title or "").strip()
+    note_title = re.sub(r"\s+", " ", note.splitlines()[0]).strip() if note else ""
+    host_title = (parsed.hostname or "快速收下").removeprefix("www.")
+    title = (requested_title or note_title or f"稍后再看 · {host_title}")[:200]
+    now = datetime.now(timezone.utc).isoformat()
+    latest_id = db.query(func.max(SessionModel.id)).scalar() or 0
+    next_id = max(int(time.time() * 1000), latest_id + 1)
+    session = SessionModel(
+        id=next_id,
+        title=title,
+        status="done",
+        created_at=now,
+        updated_at=now,
+        client_id=body.client_id,
+        last_seen_at=now,
+        user_note=note,
+    )
+    db.add(session)
+    db.flush()
+    material = Material(
+        session_id=session.id,
+        type="link",
+        source="quick_capture",
+        file_path="",
+        original_url=clean_url,
+        sort_order=0,
+        status="done",
+    )
+    db.add(material)
+    db.commit()
+    db.refresh(session)
+    db.refresh(material)
+    clear_progress(session.id)
+    return {
+        "session": SessionOut.model_validate(session),
+        "material": MaterialOut(
+            id=material.id,
+            type=material.type,
+            source=material.source,
+            sort_order=material.sort_order,
+            status=material.status,
+            url=None,
+            original_url=material.original_url,
+        ),
+    }
 
 
 @router.post("/api/sessions/{session_id}/heartbeat")

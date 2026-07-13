@@ -10,6 +10,13 @@ class SessionNoteUpdate(BaseModel):
     user_note: str = ""
 
 
+class QuickCaptureCreate(BaseModel):
+    url: str
+    note: str = ""
+    title: str | None = None
+    client_id: str | None = None
+
+
 class SessionOut(BaseModel):
     id: int
     title: str

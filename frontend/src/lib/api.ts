@@ -222,6 +222,37 @@ export const useDownloadLink = <TError = unknown, TContext = unknown>(
   });
 };
 
+export const useQuickCapture = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      any,
+      TError,
+      { url: string; note?: string; title?: string; clientId?: string },
+      TContext
+    >;
+  }
+) => {
+  return useMutation<
+    any,
+    TError,
+    { url: string; note?: string; title?: string; clientId?: string },
+    TContext
+  >({
+    mutationFn: ({ url, note = "", title, clientId }) =>
+      safeFetch<any>("/api/sessions/quick-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          note,
+          title: title || undefined,
+          client_id: clientId || undefined,
+        }),
+      }),
+    ...options?.mutation,
+  });
+};
+
 export const useProcessSession = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<any, TError, { sessionId: string }, TContext>;

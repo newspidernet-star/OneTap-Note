@@ -287,6 +287,23 @@ def _export_note(
     return "\n".join(lines)
 
 
+def _export_quick_capture(
+    title: str,
+    created: str,
+    materials: list[Material],
+    user_note: str = "",
+) -> str:
+    lines = _frontmatter(title, created, "quick-capture")
+    lines.extend([f"# {title}", ""])
+    note = (user_note or "").strip()
+    if note:
+        lines.extend(["## 我为什么留下", "", note, ""])
+    else:
+        lines.extend(["## 我为什么留下", "", "（暂未补充，先把来源收下。）", ""])
+    lines.extend(_source_link_lines(materials))
+    return "\n".join(lines)
+
+
 def _export_transcript(title: str, created: str, summary: Summary, blocks: list[EvidenceBlock]) -> str:
     lines = _frontmatter(f"{title} - 完整原文", created, "transcript")
     lines.extend([f"# {title} - 完整原文", ""])
@@ -336,14 +353,20 @@ def export_obsidian_md(
     session = db.query(SessionModel).filter_by(id=session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    summary = db.query(Summary).filter_by(session_id=session_id).first()
-    if not summary:
-        raise HTTPException(status_code=404, detail="总结结果不存在")
-
     blocks = db.query(EvidenceBlock).filter_by(session_id=session_id).order_by(EvidenceBlock.timestamp).all()
     materials = db.query(Material).filter_by(session_id=session_id).order_by(Material.sort_order).all()
     title = session.title or "Untitled"
     created = session.created_at[:10] if session.created_at else ""
+    summary = db.query(Summary).filter_by(session_id=session_id).first()
+    is_quick_capture = any(material.source == "quick_capture" for material in materials)
+    if not summary:
+        if is_quick_capture and view == "note":
+            return {
+                "markdown": _export_quick_capture(title, created, materials, session.user_note or ""),
+                "filename": f"{title}.md",
+            }
+        raise HTTPException(status_code=404, detail="总结结果不存在")
+
     if view == "transcript":
         return {
             "markdown": _export_transcript(title, created, summary, blocks),
