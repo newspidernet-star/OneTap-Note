@@ -117,6 +117,20 @@ function fmtTimestamp(t: any): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+type BatchLinkJob = {
+  url: string;
+  status: "queued" | "processing" | "done" | "failed";
+  sessionId?: string;
+  title?: string;
+  error?: string;
+};
+
+function extractLinks(input: string): string[] {
+  const matches = input.match(/(?:https?:\/\/|www\.)[^\s,，;；]+/g) || [];
+  const urls = matches.map(url => url.startsWith("www.") ? `https://${url}` : url);
+  return Array.from(new Set(urls));
+}
+
 export default function Workstation() {
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [highlightedBlock, setHighlightedBlock] = useState<string | null>(null);
@@ -129,6 +143,8 @@ export default function Workstation() {
   const [justGeneratedSessionId, setJustGeneratedSessionId] = useState<string | null>(null);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [linkInput, setLinkInput] = useState("");
+  const [batchJobs, setBatchJobs] = useState<BatchLinkJob[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
   const [userNoteDraft, setUserNoteDraft] = useState("");
   const [uploadRunning, setUploadRunning] = useState(false);
@@ -656,7 +672,7 @@ export default function Workstation() {
   };
 
   const handleAddLink = async (appendToCurrent = false) => {
-    if (isProcessing) return;
+    if (isProcessing || batchRunning) return;
     const url = linkInput.trim();
     if (!url) return;
     let sessionId = activeSessionId;
@@ -707,11 +723,84 @@ export default function Workstation() {
     }
   };
 
+  const processBatchLinks = async () => {
+    if (isProcessing || batchRunning) return;
+    const urls = extractLinks(linkInput);
+    if (urls.length === 0) return;
+    if (urls.length === 1) {
+      await handleAddLink(false);
+      return;
+    }
+
+    const initialJobs: BatchLinkJob[] = urls.map(url => ({ url, status: "queued" }));
+    setBatchJobs(initialJobs);
+    setBatchRunning(true);
+    setUploadRunning(true);
+    setUploadError(null);
+    setGenerateError(null);
+
+    let successCount = 0;
+    for (const [index, url] of urls.entries()) {
+      let sessionId = "";
+      const fallbackTitle = `链接素材 ${index + 1}`;
+      let title = fallbackTitle;
+      try {
+        title = new URL(url).hostname.replace(/^www\./, "") || fallbackTitle;
+      } catch {}
+
+      setBatchJobs(current => current.map((job, i) => i === index ? { ...job, title, status: "processing" } : job));
+
+      try {
+        const created = await createSessionMut.mutateAsync({ clientId, title });
+        sessionId = String(created.id);
+        setBatchJobs(current => current.map((job, i) => i === index ? { ...job, sessionId } : job));
+        setActiveSessionId(sessionId);
+        setUploadErrorSessionId(sessionId);
+        setProcessingSessionId(sessionId);
+        await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
+
+        const downloaded = await downloadLinkMut.mutateAsync({ sessionId, url });
+        await processMut.mutateAsync({ sessionId });
+        invalidateAll(sessionId);
+
+        const downloadedMaterials = (downloaded?.materials ?? []) as any[];
+        const hasAudioVideo = downloadedMaterials.some(m => m.type === "audio" || m.type === "video");
+        if (hasAudioVideo) {
+          await runTranscribeAsync(sessionId);
+        }
+        await regenerateSummary(sessionId);
+        invalidateAll(sessionId);
+
+        successCount += 1;
+        setBatchJobs(current => current.map((job, i) => i === index ? { ...job, status: "done" } : job));
+      } catch (error: any) {
+        const message = error?.message || "处理失败";
+        setBatchJobs(current => current.map((job, i) => i === index ? { ...job, status: "failed", error: message, sessionId: sessionId || job.sessionId } : job));
+        if (sessionId) {
+          setUploadErrorSessionId(sessionId);
+          setUploadError(message);
+          invalidateAll(sessionId);
+        }
+      } finally {
+        setProcessingSessionId(null);
+      }
+    }
+
+    setBatchRunning(false);
+    setUploadRunning(false);
+    setLinkInput("");
+    setUploadErrorSessionId(null);
+    sonnerToast.success("批量链接处理完成", {
+      description: `${successCount}/${urls.length} 个链接已生成知识笔记，失败项可在左侧会话里重试。`,
+    });
+  };
+
   const statusText = (s: string) => s === 'done' ? '已完成' : s === 'processing' ? '处理中' : s === 'failed' ? '失败' : (s || '就绪');
   const pipelineError = uploadError || activeSession?.error_message || generateError || undefined;
   const progressIsProcessing = !pipelineError && processingProgress?.status === "processing";
   const isActiveSessionGenerating = generationSessionId === activeSessionId;
   const isProcessing =
+    batchRunning ||
     uploadRunning ||
     uploadMut.isPending ||
     downloadLinkMut.isPending ||
@@ -755,6 +844,8 @@ export default function Workstation() {
               : "idle";
 
   const canGenerate = !isMock && !isProcessing && !generationSessionId && !awaitingTranscription && !transcribeMut.isPending && !!activeSessionId && displayEvidence.length > 0;
+  const pastedLinks = useMemo(() => extractLinks(linkInput), [linkInput]);
+  const isBatchLinkInput = pastedLinks.length > 1;
   const dismissCurrentError = async () => {
     const sessionId = activeSessionId;
     setUploadError(null);
@@ -991,11 +1082,49 @@ export default function Workstation() {
                       className="flex items-center gap-2 px-3 py-2.5 max-md:py-2.5 rounded-xl bg-card/80 border hover:border-primary/30 transition-colors group cursor-text"
                     >
                       <LinkIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-focus-within:text-primary transition-colors" />
-                      <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)} disabled={isProcessing} onKeyDown={e => { if (e.key === 'Enter' && !isProcessing) handleAddLink(); }} placeholder={isProcessing ? "处理中，请稍候..." : "粘贴视频或音频链接..."} className="flex-1 bg-transparent border-none outline-none text-xs placeholder:text-muted-foreground/60 disabled:opacity-50" />
+                      <textarea
+                        value={linkInput}
+                        onChange={e => setLinkInput(e.target.value)}
+                        disabled={isProcessing || batchRunning}
+                        rows={isBatchLinkInput ? 3 : 1}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey && !isBatchLinkInput && !isProcessing && !batchRunning) {
+                            e.preventDefault();
+                            handleAddLink();
+                          }
+                          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !isProcessing && !batchRunning) {
+                            e.preventDefault();
+                            processBatchLinks();
+                          }
+                        }}
+                        placeholder={isProcessing ? "处理中，请稍候..." : "粘贴一个或多个视频/音频链接..."}
+                        className="min-h-5 flex-1 resize-none bg-transparent border-none outline-none text-xs leading-5 placeholder:text-muted-foreground/60 disabled:opacity-50"
+                      />
                     </motion.div>
-                    <button onClick={() => handleAddLink()} disabled={isProcessing || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
-                      {isProcessing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : "添加链接"}
+                    {isBatchLinkInput && (
+                      <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-[11px] leading-5 text-muted-foreground">
+                        识别到 {pastedLinks.length} 个链接，会逐个创建会话并排队生成笔记。
+                      </div>
+                    )}
+                    <button onClick={() => isBatchLinkInput ? processBatchLinks() : handleAddLink()} disabled={isProcessing || batchRunning || !linkInput.trim()} className="w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
+                      {(isProcessing || batchRunning) ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 处理中...</> : isBatchLinkInput ? `批量处理 ${pastedLinks.length} 个链接` : "添加链接"}
                     </button>
+                    {batchJobs.length > 0 && (
+                      <div className="space-y-1 rounded-lg border border-border/70 bg-card/70 p-2">
+                        {batchJobs.map((job, index) => (
+                          <button
+                            key={`${job.url}-${index}`}
+                            type="button"
+                            onClick={() => job.sessionId && setActiveSessionId(job.sessionId)}
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted/60"
+                          >
+                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${job.status === "done" ? "bg-emerald-500" : job.status === "failed" ? "bg-red-500" : job.status === "processing" ? "bg-amber-500 animate-pulse" : "bg-muted-foreground/40"}`} />
+                            <span className="min-w-0 flex-1 truncate">{job.title || job.url}</span>
+                            <span className="shrink-0">{job.status === "queued" ? "排队" : job.status === "processing" ? "处理中" : job.status === "done" ? "完成" : "失败"}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
 )}
