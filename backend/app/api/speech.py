@@ -18,6 +18,21 @@ logger = logging.getLogger("smart_scribe")
 router = APIRouter(prefix="/api/speech", tags=["speech"])
 
 
+def _friendly_transcription_error(error: Exception) -> str:
+    """Keep provider payloads in logs while returning an actionable UI message."""
+    message = str(error)
+    normalized = message.upper()
+    if any(token in normalized for token in ("FILE_DOWNLOAD_FAILED", "SERVER_ERROR", "TRYCLOUDFLARE")):
+        return "语音服务暂时无法读取音频，请稍后重试。若持续失败，请检查网络代理后重新处理。"
+    if "DASHSCOPE API KEY" in normalized:
+        return "语音转写凭证未配置，请在设置中填写 DashScope API Key。"
+    if "UNAUTHORIZED" in normalized or "INVALID_API_KEY" in normalized or "401" in normalized:
+        return "语音转写凭证无效，请在设置中更新 DashScope API Key。"
+    if "TIMEOUT" in normalized or "超时" in message:
+        return "语音转写等待超时，请稍后重新处理。"
+    return "语音转写失败，请稍后重试；若仍失败，请检查转写设置和网络。"
+
+
 def _run_transcribe(audio_path: str, session_id: int, material_id: int | None = None) -> list[dict]:
     db = session_factory()
     try:
@@ -79,15 +94,17 @@ async def start_transcribe(session_id: int, db: Session = Depends(get_db)):
                 finally:
                     db2.close()
                 continue
-            public_msg = msg
-            if "FILE_DOWNLOAD_FAILED" in msg:
-                public_msg = "语音服务暂时无法读取音频文件，已自动重试。请稍后再试或检查网络代理。"
+            logger.exception("[ASR] session %s: material %s failed: %s", session_id, material.id, msg)
+            public_msg = _friendly_transcription_error(e)
             db2 = session_factory()
             try:
+                mat = db2.query(Material).filter_by(id=material.id, session_id=session_id).first()
+                if mat:
+                    mat.status = "failed"
                 sess = db2.query(SessionModel).filter_by(id=session_id).first()
                 if sess:
                     sess.status = "failed"
-                    sess.error_message = public_msg[:500]
+                    sess.error_message = public_msg
                     sess.updated_at = datetime.now(timezone.utc).isoformat()
                     db2.commit()
             finally:

@@ -107,6 +107,7 @@ export default function IslandButton({
               disabled={disabled}
               progress={progress}
               brandIcon={brandIcon}
+              errorMessage={errorMessage}
             />
           </motion.div>
         )}

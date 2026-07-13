@@ -1,4 +1,24 @@
-from app.services.qwen_asr import _parse_filetrans_response
+from app.api.speech import _friendly_transcription_error
+from app.services.qwen_asr import _is_retriable_public_file_error, _parse_filetrans_response
+
+
+def test_public_file_server_error_is_retriable():
+    error = ValueError(
+        "ASR 任务失败: {'code': 'SERVER_ERROR', "
+        "'file_url': 'https://example.trycloudflare.com/static/media/audio.mp3'}"
+    )
+    assert _is_retriable_public_file_error(error) is True
+    assert _friendly_transcription_error(error) == (
+        "语音服务暂时无法读取音频，请稍后重试。若持续失败，请检查网络代理后重新处理。"
+    )
+
+
+def test_unrelated_asr_error_is_not_exposed_to_ui():
+    error = ValueError("ASR 任务失败: {'request_id': 'secret-debug-id'}")
+    assert _is_retriable_public_file_error(error) is False
+    assert _friendly_transcription_error(error) == (
+        "语音转写失败，请稍后重试；若仍失败，请检查转写设置和网络。"
+    )
 
 
 def test_parse_filetrans_response_sentences():

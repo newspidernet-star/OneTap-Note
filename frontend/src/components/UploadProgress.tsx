@@ -61,7 +61,7 @@ export default function UploadProgress({ status, errorMessage, onRetry, onDismis
 
           {status === "error" && (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-[11px] text-red-400/70 text-center max-w-[200px] max-md:max-w-[180px]">
+              <p className="line-clamp-4 text-[11px] leading-4 text-red-400/80 text-center max-w-[200px] max-md:max-w-[180px]">
                 {errorMessage || "请检查文件或 API 设置"}
               </p>
               <div className="flex items-center gap-2">

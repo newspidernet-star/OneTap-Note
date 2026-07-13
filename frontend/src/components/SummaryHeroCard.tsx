@@ -19,6 +19,7 @@ interface SummaryHeroCardProps {
   className?: string;
   progress?: ProcessingProgress;
   brandIcon?: string;
+  errorMessage?: string;
 }
 
 export function SummaryHeroCard({
@@ -31,6 +32,7 @@ export function SummaryHeroCard({
   className,
   progress,
   brandIcon = "/icon-dark.png",
+  errorMessage,
 }: SummaryHeroCardProps) {
   const isMobile = useIsMobile();
   const isLoading = state === "loading";
@@ -147,8 +149,8 @@ export function SummaryHeroCard({
         </div>
 
         {isError && (
-          <p className="mt-5 text-sm text-muted-foreground">
-            生成时遇到问题，请检查媒体或链接后重试。
+          <p className="mx-auto mt-5 max-w-md text-sm leading-6 text-red-500/85">
+            {errorMessage || "处理时遇到问题，请检查媒体、转写设置或网络后重试。"}
           </p>
         )}
       </div>

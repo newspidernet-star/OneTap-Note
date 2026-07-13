@@ -131,6 +131,24 @@ function extractLinks(input: string): string[] {
   return Array.from(new Set(urls));
 }
 
+function friendlyPipelineError(error: unknown): string {
+  const raw = typeof error === "string" ? error : (error as any)?.message || "";
+  const normalized = raw.toUpperCase();
+  if (
+    normalized.includes("FILE_DOWNLOAD_FAILED") ||
+    normalized.includes("TRYCLOUDFLARE") ||
+    (normalized.includes("SERVER_ERROR") && normalized.includes("FILE_URL"))
+  ) {
+    return "语音服务暂时无法读取音频，请稍后重试。若持续失败，请检查网络代理后重新处理。";
+  }
+  const cleaned = raw.replace(/^Request failed:\s*\d+\s*-\s*/i, "").trim();
+  if (!cleaned) return "处理失败，请稍后重新处理。";
+  if (cleaned.length > 180 || /request_id|task_id|subtask_status|results/i.test(cleaned)) {
+    return "处理失败，请稍后重试；若仍失败，请检查 API 设置和网络。";
+  }
+  return cleaned;
+}
+
 export default function Workstation() {
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [highlightedBlock, setHighlightedBlock] = useState<string | null>(null);
@@ -493,7 +511,7 @@ export default function Workstation() {
     );
     const hasLegacySpeech = speechBlocks.some((block: any) => block.material_id == null);
     return audioVideoMaterials.some((material: any) => {
-      if (material.status === "no_speech") return false;
+      if (material.status === "no_speech" || material.status === "failed") return false;
       if (speechMaterialIds.has(material.id)) return false;
       if (hasLegacySpeech && audioVideoMaterials.length === 1) return false;
       return true;
@@ -796,7 +814,8 @@ export default function Workstation() {
   };
 
   const statusText = (s: string) => s === 'done' ? '已完成' : s === 'processing' ? '处理中' : s === 'failed' ? '失败' : (s || '就绪');
-  const pipelineError = uploadError || activeSession?.error_message || generateError || undefined;
+  const rawPipelineError = uploadError || activeSession?.error_message || generateError || undefined;
+  const pipelineError = rawPipelineError ? friendlyPipelineError(rawPipelineError) : undefined;
   const progressIsProcessing = !pipelineError && processingProgress?.status === "processing";
   const isActiveSessionGenerating = generationSessionId === activeSessionId;
   const isProcessing =
@@ -829,7 +848,7 @@ export default function Workstation() {
           ? "summarizing"
           : "uploading"
     : null;
-  const buttonStatus: ButtonStatus = generateError
+  const buttonStatus: ButtonStatus = pipelineError
     ? "error"
     : progressButtonStatus
       ? progressButtonStatus
@@ -1320,7 +1339,7 @@ export default function Workstation() {
               mediaUrl={currentPreview?.url}
               mediaType={currentPreview?.type as any}
               videoRef={videoRef}
-              errorMessage={generateError || undefined}
+              errorMessage={pipelineError}
               onPrev={hasPrevMaterial ? goToPrevMaterial : undefined}
               onNext={hasNextMaterial ? goToNextMaterial : undefined}
               hasPrev={hasPrevMaterial}

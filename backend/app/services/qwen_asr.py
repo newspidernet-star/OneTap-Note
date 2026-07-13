@@ -16,6 +16,16 @@ FUNASR_MODEL = "fun-asr"
 logger = logging.getLogger("smart_scribe")
 
 
+def _is_retriable_public_file_error(error: Exception) -> bool:
+    message = str(error)
+    normalized = message.upper()
+    if "FILE_DOWNLOAD_FAILED" in normalized:
+        return True
+    return "SERVER_ERROR" in normalized and (
+        "TRYCLOUDFLARE" in normalized or "FILE_URL" in normalized
+    )
+
+
 def _max_s_block_number(session_id: int, db: Session) -> int:
     existing = db.query(EvidenceBlock.block_id).filter(
         EvidenceBlock.session_id == session_id,
@@ -186,8 +196,8 @@ def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> 
             break
         except ValueError as e:
             last_err = e
-            if "FILE_DOWNLOAD_FAILED" in str(e) and attempt < max_attempts - 1:
-                logger.warning("ASR FILE_DOWNLOAD_FAILED (attempt %d/%d), rebuilding tunnel and retrying...",
+            if _is_retriable_public_file_error(e) and attempt < max_attempts - 1:
+                logger.warning("ASR public file fetch failed (attempt %d/%d), rebuilding tunnel and retrying...",
                                attempt + 1, max_attempts)
                 if not get_settings().public_base_url:
                     reset_tunnel()
