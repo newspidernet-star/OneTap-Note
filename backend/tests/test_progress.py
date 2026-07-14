@@ -1,4 +1,5 @@
 import pytest
+import json
 
 from app.services.progress import clear_progress, finish_progress, get_progress, set_progress
 
@@ -35,3 +36,39 @@ def test_clear_progress_removes_reused_session_state():
     clear_progress(777)
 
     assert get_progress(777)["status"] == "idle"
+
+
+def test_progress_writes_timing_only_metric(monkeypatch, tmp_path):
+    metrics_path = tmp_path / "processing-runs.jsonl"
+    monkeypatch.setenv("ONE_TAP_NOTE_COLLECT_METRICS", "1")
+    monkeypatch.setenv("ONE_TAP_NOTE_METRICS_PATH", str(metrics_path))
+    ticks = iter([200.0, 202.5, 205.0])
+    monkeypatch.setattr("app.services.progress.time.time", lambda: next(ticks))
+
+    set_progress(888, "download", "downloading", "https://secret.example/video")
+    set_progress(888, "transcribe", "transcribing", "private note text")
+    finish_progress(888, "done", "private result")
+
+    record = json.loads(metrics_path.read_text(encoding="utf-8"))
+    assert record["status"] == "done"
+    assert record["total_seconds"] == 5.0
+    assert record["completed_stages"] == [
+        {"stage": "download", "duration_seconds": 2.5},
+        {"stage": "transcribe", "duration_seconds": 2.5},
+    ]
+    raw = metrics_path.read_text(encoding="utf-8")
+    assert '"session_id"' not in raw
+    assert "secret.example" not in raw
+    assert "private" not in raw
+
+
+def test_metric_write_failure_does_not_break_progress(monkeypatch, tmp_path):
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("blocked", encoding="utf-8")
+    monkeypatch.setenv("ONE_TAP_NOTE_COLLECT_METRICS", "1")
+    monkeypatch.setenv("ONE_TAP_NOTE_METRICS_PATH", str(blocker / "metrics.jsonl"))
+
+    set_progress(204, "transcribing", "working")
+    finish_progress(204)
+
+    assert get_progress(204)["status"] == "done"

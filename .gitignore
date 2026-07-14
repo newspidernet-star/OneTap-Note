@@ -37,6 +37,7 @@ backend/.env
 conversations/
 /release/
 /.cache/
+/.metrics/
 desktop/dist/
 desktop/dist-installer/
 

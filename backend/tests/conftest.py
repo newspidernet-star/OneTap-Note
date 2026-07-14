@@ -9,6 +9,12 @@ from app.database import get_db
 from app.main import create_app
 
 
+@pytest.fixture(autouse=True)
+def disable_local_metrics(monkeypatch):
+    """Tests must not write timing samples into the developer's local history."""
+    monkeypatch.setenv("ONE_TAP_NOTE_COLLECT_METRICS", "0")
+
+
 @pytest.fixture
 async def client():
     app = create_app()

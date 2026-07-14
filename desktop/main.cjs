@@ -6,6 +6,8 @@ const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
 
+const APP_PROCESS_STARTED_AT = Date.now();
+
 let backendProcess = null;
 let mainWindow = null;
 let tray = null;
@@ -19,6 +21,34 @@ const BACKEND_URL = "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 300;
 const MIN_SPLASH_MS = 900;
+
+function appendJsonLine(filePath, record) {
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.appendFileSync(filePath, JSON.stringify(record) + "\n", "utf8");
+  } catch (err) {
+    console.warn("[metrics] failed to write local metric:", err);
+  }
+}
+
+function recordStartupMetric(timing) {
+  const loadedAt = Date.now();
+  const record = {
+    schema_version: 1,
+    recorded_at: new Date(loadedAt).toISOString(),
+    app_version: app.getVersion(),
+    packaged: app.isPackaged,
+    mode: timing.backendWasRunning ? "warm" : "cold",
+    installation_was_required: timing.installationWasRequired,
+    process_to_app_ready_ms: timing.appReadyAt - APP_PROCESS_STARTED_AT,
+    health_check_ms: timing.healthCheckFinishedAt - timing.healthCheckStartedAt,
+    process_to_backend_ready_ms: timing.backendReadyAt - APP_PROCESS_STARTED_AT,
+    backend_ready_to_page_loaded_ms: loadedAt - timing.backendReadyAt,
+    total_startup_ms: loadedAt - APP_PROCESS_STARTED_AT,
+  };
+  appendJsonLine(path.join(app.getPath("userData"), "metrics", "startup-runs.jsonl"), record);
+  console.log(`[metrics] ${record.mode} startup ${record.total_startup_ms}ms`);
+}
 
 // Use hex colors here. Windows titleBarOverlay may fall back to white with
 // some CSS color syntaxes, which makes the caption buttons look detached.
@@ -459,9 +489,14 @@ ipcMain.on("desktop-close-action", (_event, payload) => {
 app.whenReady().then(async () => {
   const root = getProjectRoot();
   const splashStartedAt = Date.now();
+  const appReadyAt = Date.now();
+  const healthCheckStartedAt = Date.now();
 
   // Step 1: check if backend is already running
   const alreadyRunning = await checkHealth();
+  const healthCheckFinishedAt = Date.now();
+  const installationWasRequired = !alreadyRunning && !isBackendInstalled(root);
+  let backendReadyAt = healthCheckFinishedAt;
   console.log("[startup] backend already running:", alreadyRunning);
 
   createWindow();
@@ -483,6 +518,7 @@ app.whenReady().then(async () => {
     startBackend(root);
     try {
       await waitForHealth();
+      backendReadyAt = Date.now();
     } catch (err) {
       dialog.showErrorBox("One Tap Note - 启动失败",
         "后端服务未能启动：\n" + err.message + "\n\n请尝试双击 start-windows.bat 启动，或检查日志。");
@@ -495,6 +531,15 @@ app.whenReady().then(async () => {
       await loadAppWindow();
     }
   }
+
+  recordStartupMetric({
+    appReadyAt,
+    healthCheckStartedAt,
+    healthCheckFinishedAt,
+    backendReadyAt,
+    backendWasRunning: alreadyRunning,
+    installationWasRequired,
+  });
 
   app.on("activate", () => {
     showMainWindow();

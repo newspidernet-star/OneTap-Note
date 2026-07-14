@@ -3,6 +3,9 @@ from __future__ import annotations
 from copy import deepcopy
 from threading import Lock
 import time
+from uuid import uuid4
+
+from app.services.metrics import append_processing_metric
 
 
 _lock = Lock()
@@ -22,6 +25,7 @@ def set_progress(
         current = _states.get(session_id)
         if reset or not current or current.get("status") in {"done", "error"}:
             _states[session_id] = {
+                "run_id": uuid4().hex,
                 "session_id": session_id,
                 "status": "processing",
                 "stage": stage,
@@ -65,10 +69,12 @@ def clear_progress(session_id: int) -> None:
 
 def _finish(session_id: int, status: str, label: str, detail: str) -> None:
     now = time.time()
+    snapshot = None
     with _lock:
         current = _states.get(session_id)
         if not current:
             current = {
+                "run_id": uuid4().hex,
                 "session_id": session_id,
                 "started_at": now,
                 "stage_started_at": now,
@@ -88,7 +94,10 @@ def _finish(session_id: int, status: str, label: str, detail: str) -> None:
             "detail": detail,
             "stage_started_at": now,
             "updated_at": now,
+            "total_seconds": round(now - current["started_at"], 1),
         })
+        snapshot = deepcopy(current)
+    append_processing_metric(snapshot)
 
 
 def get_progress(session_id: int) -> dict:
