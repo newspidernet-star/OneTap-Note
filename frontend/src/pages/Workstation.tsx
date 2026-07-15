@@ -329,9 +329,10 @@ export default function Workstation() {
     if (activeSessionId !== prevActiveSessionRef.current) {
       setLinkInput("");
       setGenerateError(null);
+      if (!batchRunning) setBatchJobs([]);
       prevActiveSessionRef.current = activeSessionId;
     }
-  }, [activeSessionId]);
+  }, [activeSessionId, batchRunning]);
 
   const { data: evidence = [], refetch: refetchEvidence } = useGetEvidenceBlocks(activeSessionId, {
     query: { enabled: hasSession, queryKey: getGetEvidenceBlocksQueryKey(activeSessionId) },
@@ -395,7 +396,7 @@ export default function Workstation() {
   });
   const deleteMut = useDeleteSession({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         // 清理被删会话残留的处理状态，避免切到别的会话时还显示"处理中"
         setProcessingSessionId(null);
         setUploadRunning(false);
@@ -408,7 +409,7 @@ export default function Workstation() {
         processMut.reset();
         transcribeMut.reset();
         // 取消属于被删会话的查询
-        const deletedSessionId = deleteTarget?.id || "";
+        const deletedSessionId = variables.sessionId;
         queryClient.removeQueries({ queryKey: getGetMaterialsQueryKey(deletedSessionId) });
         queryClient.removeQueries({ queryKey: getGetEvidenceBlocksQueryKey(deletedSessionId) });
         queryClient.removeQueries({ queryKey: getGetSummaryResultQueryKey(deletedSessionId) });
@@ -421,6 +422,7 @@ export default function Workstation() {
       },
     },
   });
+  const cleanupEmptySessionMut = useDeleteSession();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const dismissErrorMut = useDismissSessionError();
   const renameMut = useRenameSession();
@@ -791,6 +793,20 @@ export default function Workstation() {
       return;
     }
 
+    const originSessionId = activeSessionId;
+    const originSession = realSessions.find(session => session.id === originSessionId);
+    const shouldRemoveEmptyOrigin = Boolean(
+      originSessionId &&
+      originSession?.status === "created" &&
+      !originSession?.error_message &&
+      !(originSession?.user_note || "").trim() &&
+      !userNoteDraft.trim() &&
+      (materials as any[]).length === 0 &&
+      (evidence as any[]).length === 0 &&
+      !summary &&
+      processingProgress?.status !== "processing"
+    );
+
     const initialJobs: BatchLinkJob[] = urls.map(url => ({ url, status: "queued" }));
     setBatchJobs(initialJobs);
     setBatchRunning(true);
@@ -799,6 +815,8 @@ export default function Workstation() {
     setGenerateError(null);
 
     let successCount = 0;
+    let lastCreatedSessionId = "";
+    let lastSuccessfulSessionId = "";
     for (const [index, url] of urls.entries()) {
       let sessionId = "";
       const fallbackTitle = `链接素材 ${index + 1}`;
@@ -812,6 +830,7 @@ export default function Workstation() {
       try {
         const created = await createSessionMut.mutateAsync({ clientId, title });
         sessionId = String(created.id);
+        lastCreatedSessionId = sessionId;
         setBatchJobs(current => current.map((job, i) => i === index ? { ...job, sessionId } : job));
         setActiveSessionId(sessionId);
         setUploadErrorSessionId(sessionId);
@@ -831,6 +850,7 @@ export default function Workstation() {
         invalidateAll(sessionId);
 
         successCount += 1;
+        lastSuccessfulSessionId = sessionId;
         setBatchJobs(current => current.map((job, i) => i === index ? { ...job, status: "done" } : job));
       } catch (error: any) {
         const message = error?.message || "处理失败";
@@ -845,10 +865,26 @@ export default function Workstation() {
       }
     }
 
+    if (shouldRemoveEmptyOrigin && originSessionId) {
+      try {
+        await cleanupEmptySessionMut.mutateAsync({ sessionId: originSessionId });
+        queryClient.removeQueries({ queryKey: getGetMaterialsQueryKey(originSessionId) });
+        queryClient.removeQueries({ queryKey: getGetEvidenceBlocksQueryKey(originSessionId) });
+        queryClient.removeQueries({ queryKey: getGetSummaryResultQueryKey(originSessionId) });
+        queryClient.removeQueries({ queryKey: getProcessingProgressQueryKey(originSessionId) });
+      } catch (error) {
+        console.warn("Failed to remove empty batch origin session", error);
+      }
+    }
+
     setBatchRunning(false);
     setUploadRunning(false);
     setLinkInput("");
+    setBatchJobs([]);
     setUploadErrorSessionId(null);
+    await queryClient2.invalidateQueries({ queryKey: getListSessionsQueryKey(clientId) });
+    const nextSessionId = lastSuccessfulSessionId || lastCreatedSessionId;
+    if (nextSessionId) setActiveSessionId(nextSessionId);
     sonnerToast.success("批量链接处理完成", {
       description: `${successCount}/${urls.length} 个链接已生成知识笔记，失败项可在左侧会话里重试。`,
     });
