@@ -1,7 +1,9 @@
 import logging
+import mimetypes
 import re as _re
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 import httpx
@@ -77,13 +79,16 @@ def _ensure_mp3(path: str) -> str:
 
 def _submit_funasr(file_url: str, api_key: str, workspace_id: str | None) -> str:
     url = f"{_base_url(workspace_id)}/services/audio/asr/transcription"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "X-DashScope-Async": "enable",
+    }
+    if file_url.startswith("oss://"):
+        headers["X-DashScope-OssResourceResolve"] = "enable"
     resp = httpx.post(
         url,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "X-DashScope-Async": "enable",
-        },
+        headers=headers,
         json={
             "model": FUNASR_MODEL,
             "input": {"file_urls": [file_url]},
@@ -101,6 +106,60 @@ def _submit_funasr(file_url: str, api_key: str, workspace_id: str | None) -> str
     if not task_id:
         raise ValueError(f"提交 Fun‑ASR 任务失败: {data}")
     return task_id
+
+
+def _upload_to_dashscope_temp(file_path: str, api_key: str) -> str:
+    """Upload one ASR input to DashScope's private 48-hour temporary storage."""
+    path = Path(file_path)
+    policy_response = httpx.get(
+        "https://dashscope.aliyuncs.com/api/v1/uploads",
+        params={"action": "getPolicy", "model": FUNASR_MODEL},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout=30,
+    )
+    policy_response.raise_for_status()
+    policy = policy_response.json().get("data", {})
+    required = (
+        "policy",
+        "signature",
+        "upload_dir",
+        "upload_host",
+        "oss_access_key_id",
+        "x_oss_object_acl",
+        "x_oss_forbid_overwrite",
+    )
+    missing = [field for field in required if not policy.get(field)]
+    if missing:
+        raise ValueError(f"DashScope upload policy is missing: {', '.join(missing)}")
+
+    max_size_mb = float(policy.get("max_file_size_mb") or 0)
+    if max_size_mb and path.stat().st_size > max_size_mb * 1024 * 1024:
+        raise ValueError(f"ASR audio exceeds DashScope temporary upload limit ({max_size_mb:g} MB)")
+
+    suffix = path.suffix.lower() or ".mp3"
+    upload_name = f"onetap-asr-{uuid.uuid4().hex}{suffix}"
+    object_key = f"{policy['upload_dir'].rstrip('/')}/{upload_name}"
+    content_type = mimetypes.guess_type(upload_name)[0] or "application/octet-stream"
+    with path.open("rb") as handle:
+        upload_response = httpx.post(
+            policy["upload_host"],
+            files=[
+                ("OSSAccessKeyId", (None, policy["oss_access_key_id"])),
+                ("policy", (None, policy["policy"])),
+                ("Signature", (None, policy["signature"])),
+                ("key", (None, object_key)),
+                ("x-oss-object-acl", (None, policy["x_oss_object_acl"])),
+                ("x-oss-forbid-overwrite", (None, policy["x_oss_forbid_overwrite"])),
+                ("success_action_status", (None, "200")),
+                ("file", (upload_name, handle, content_type)),
+            ],
+            timeout=120,
+        )
+    upload_response.raise_for_status()
+    return f"oss://{object_key}"
 
 
 def _poll_funasr(task_id: str, api_key: str, workspace_id: str | None, max_attempts: int = 600) -> dict:
@@ -179,14 +238,23 @@ def _public_url_for_local_file(audio_path: str) -> str | None:
 
 
 def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> list[dict]:
-    public_url = _public_url_for_local_file(mp3_path)
-    if not public_url:
-        raise ValueError(
-            "语音转写需要公网回拉音频，但未配置 SMART_SCRIBE_PUBLIC_BASE_URL，"
-            "且自动隧道未能启动。请设置 SMART_SCRIBE_PUBLIC_BASE_URL 指向本服务公网地址，"
-            "或安装 cloudflared 让 SMART_SCRIBE_TUNNEL=auto 自动建立临时隧道。"
+    using_dashscope_storage = True
+    try:
+        public_url = _upload_to_dashscope_temp(mp3_path, api_key)
+        logger.info("ASR input uploaded to DashScope temporary storage")
+    except Exception as upload_error:
+        using_dashscope_storage = False
+        logger.warning(
+            "DashScope temporary upload unavailable; falling back to public tunnel: %s",
+            upload_error,
         )
-    # ASR 提交+轮询，遇到 FILE_DOWNLOAD_FAILED 重试（隧道可能刚通还没完全传播）
+        public_url = _public_url_for_local_file(mp3_path)
+        if not public_url:
+            raise ValueError(
+                "Unable to deliver audio to the transcription service through temporary storage or a public tunnel"
+            ) from upload_error
+
+    # Retry delivery failures with a fresh temporary object or a rebuilt tunnel.
     max_attempts = 3
     last_err = None
     for attempt in range(max_attempts):
@@ -197,11 +265,22 @@ def _transcribe_async(mp3_path: str, api_key: str, workspace_id: str | None) -> 
         except ValueError as e:
             last_err = e
             if _is_retriable_public_file_error(e) and attempt < max_attempts - 1:
-                logger.warning("ASR public file fetch failed (attempt %d/%d), rebuilding tunnel and retrying...",
-                               attempt + 1, max_attempts)
-                if not get_settings().public_base_url:
-                    reset_tunnel()
-                    public_url = _public_url_for_local_file(mp3_path)
+                if using_dashscope_storage:
+                    logger.warning(
+                        "ASR temporary file fetch failed (attempt %d/%d), uploading a fresh copy...",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    public_url = _upload_to_dashscope_temp(mp3_path, api_key)
+                else:
+                    logger.warning(
+                        "ASR public file fetch failed (attempt %d/%d), rebuilding tunnel and retrying...",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    if not get_settings().public_base_url:
+                        reset_tunnel()
+                        public_url = _public_url_for_local_file(mp3_path)
                 time.sleep(2)
                 continue
             raise

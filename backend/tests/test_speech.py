@@ -1,5 +1,21 @@
+import app.services.qwen_asr as qwen_asr
+
 from app.api.speech import _friendly_transcription_error
 from app.services.qwen_asr import _is_retriable_public_file_error, _parse_filetrans_response
+
+
+class _Response:
+    def __init__(self, payload=None, status_code=200):
+        self._payload = payload or {}
+        self.status_code = status_code
+        self.text = ""
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
 
 
 def test_public_file_server_error_is_retriable():
@@ -87,3 +103,81 @@ def test_transcribe_stores_in_db(db_session, monkeypatch, tmp_path):
     segs = db_session.query(TranscriptSegment).filter_by(transcript_id=t.id).all()
     assert len(segs) == 1
     assert segs[0].text == "hello world"
+
+
+def test_upload_to_dashscope_temp_returns_private_oss_url(monkeypatch, tmp_path):
+    audio = tmp_path / "audio.mp3"
+    audio.write_bytes(b"audio")
+    captured = {}
+
+    policy = {
+        "data": {
+            "policy": "policy",
+            "signature": "signature",
+            "upload_dir": "tmp/dir",
+            "upload_host": "https://upload.example.com",
+            "oss_access_key_id": "access-key",
+            "x_oss_object_acl": "private",
+            "x_oss_forbid_overwrite": "true",
+            "max_file_size_mb": 10,
+        }
+    }
+
+    monkeypatch.setattr(qwen_asr.httpx, "get", lambda *args, **kwargs: _Response(policy))
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["files"] = kwargs["files"]
+        return _Response()
+
+    monkeypatch.setattr(qwen_asr.httpx, "post", fake_post)
+
+    file_url = qwen_asr._upload_to_dashscope_temp(str(audio), "test-key")
+
+    assert file_url.startswith("oss://tmp/dir/onetap-asr-")
+    assert file_url.endswith(".mp3")
+    assert captured["url"] == "https://upload.example.com"
+    assert captured["files"][-1][0] == "file"
+
+
+def test_submit_funasr_enables_private_oss_resolution(monkeypatch):
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        return _Response({"output": {"task_id": "task-1"}})
+
+    monkeypatch.setattr(qwen_asr.httpx, "post", fake_post)
+
+    task_id = qwen_asr._submit_funasr("oss://tmp/audio.mp3", "test-key", None)
+
+    assert task_id == "task-1"
+    assert captured["headers"]["X-DashScope-OssResourceResolve"] == "enable"
+
+
+def test_transcribe_async_prefers_dashscope_storage_without_tunnel(monkeypatch):
+    monkeypatch.setattr(
+        qwen_asr,
+        "_upload_to_dashscope_temp",
+        lambda *args: "oss://tmp/audio.mp3",
+    )
+    monkeypatch.setattr(
+        qwen_asr,
+        "_public_url_for_local_file",
+        lambda *args: (_ for _ in ()).throw(AssertionError("tunnel should not start")),
+    )
+    monkeypatch.setattr(qwen_asr, "_submit_funasr", lambda *args: "task-1")
+    monkeypatch.setattr(
+        qwen_asr,
+        "_poll_funasr",
+        lambda *args: {"output": {"results": [{"transcription_url": "https://result"}]}},
+    )
+    monkeypatch.setattr(
+        qwen_asr,
+        "_download_funasr",
+        lambda *args: {"transcripts": [{"text": "done"}]},
+    )
+
+    segments = qwen_asr._transcribe_async("audio.mp3", "test-key", None)
+
+    assert segments[0]["text"] == "done"
